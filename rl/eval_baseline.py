@@ -43,6 +43,7 @@ def extract_sensors(model, data):
         'yaw_rate': body_angvel[2],
         'roll_rate': body_angvel[0],
         'forward_vel': forward_vel,
+        'body_linvel': body_linvel,
         'left_hip_pos': lh_pos,
         'left_hip_vel': lh_vel,
         'right_hip_pos': rh_pos,

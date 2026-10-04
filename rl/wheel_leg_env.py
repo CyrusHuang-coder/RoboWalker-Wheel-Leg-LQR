@@ -184,11 +184,11 @@ class WheelLegRoughTerrainEnv(gym.Env):
     def step(self, action):
         action = np.clip(action, -1.0, 1.0)
         
-        # 动作解映射 (Action Scaling)
-        delta_pitch = float(action[0] * 0.05)   # 俯仰微调 [-0.05, 0.05] rad (~2.8度)
-        delta_hip   = float(action[1] * 0.12)   # 腿高微调 [-0.12, 0.12] rad
-        delta_roll  = float(action[2] * 0.10)   # 差动防侧倾 [-0.10, 0.10] rad
-        k_scale     = float(1.0 + action[3] * 0.6) # 刚度比 [0.4, 1.6]
+        # 动作解映射 (Action Scaling: 极其温和的残差调节，先验为主，残差为辅)
+        delta_pitch = float(action[0] * 0.015)  # 俯仰微调 [-0.015, 0.015] rad (~0.85度，避免推倒车身)
+        delta_hip   = float(action[1] * 0.05)   # 腿高微调 [-0.05, 0.05] rad
+        delta_roll  = float(action[2] * 0.06)   # 差动防侧倾 [-0.06, 0.06] rad (~3.4度)
+        k_scale     = float(1.0 + action[3] * 0.3) # 刚度比 [0.7, 1.3]
 
         total_slip_penalty = 0.0
         z_vel_penalty = 0.0
@@ -235,20 +235,21 @@ class WheelLegRoughTerrainEnv(gym.Env):
         r_track = np.exp(-15.0 * (sensors['forward_vel'] - self.target_v)**2)
         # 2. 存活奖励
         r_alive = 1.0
-        # 3. 横滚与俯仰惩罚 (核心创新：大力惩罚横滚角，驱使网络主动吸震保持一字水平)
-        r_roll  = 3.0 * (sensors['roll']**2)
-        r_pitch = 1.0 * (sensors['pitch']**2)
-        r_angvel = 0.05 * (sensors['roll_rate']**2 + sensors['pitch_rate']**2)
+        # 3. 横滚与俯仰惩罚
+        r_roll  = 10.0 * (sensors['roll']**2)
+        r_pitch = 2.0 * (sensors['pitch']**2)
+        r_angvel = 0.1 * (sensors['roll_rate']**2 + sensors['pitch_rate']**2)
         # 4. 滑移率防打滑惩罚
-        r_slip = 10.0 * total_slip_penalty
+        r_slip = 5.0 * total_slip_penalty
         # 5. 机身竖向平稳惩罚 (吸震效果)
         r_z_bounce = 5.0 * z_vel_penalty
-        # 6. 动作平滑度惩罚 (抑制高频抖动)
-        r_smooth = 0.05 * np.sum((action - self.last_action)**2)
+        # 6. 残差幅值与动作平滑惩罚 (杜绝满幅 bang-bang 震荡)
+        r_action_mag = 0.05 * np.sum(action**2)
+        r_smooth     = 0.05 * np.sum((action - self.last_action)**2)
 
         reward = (r_track + r_alive 
                   - r_roll - r_pitch - r_angvel 
-                  - r_slip - r_z_bounce - r_smooth)
+                  - r_slip - r_z_bounce - r_action_mag - r_smooth)
 
         self.last_action = action.copy()
         self.current_step += 1

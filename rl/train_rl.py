@@ -54,12 +54,9 @@ def main():
     print(f"  PyTorch Threads: {torch.get_num_threads()}")
     print(f"==================================================")
 
-    # 1. 创建多进程矢量化环境 (在 Windows 上使用 Dummy 或 Subproc)
-    try:
-        env = SubprocVecEnv([make_env(i) for i in range(args.num_envs)])
-    except Exception as e:
-        print(f"[Warning] SubprocVecEnv failed with {e}, falling back to DummyVecEnv.")
-        env = DummyVecEnv([make_env(i) for i in range(args.num_envs)])
+    # 1. 创建矢量化环境 (Windows 下 DummyVecEnv 最稳定，不卡死无 IPC 延迟)
+    print(f"Creating {args.num_envs} vectorized environments...")
+    env = DummyVecEnv([make_env(i) for i in range(args.num_envs)])
 
     # 2. 回调函数：定期保存最佳模型
     checkpoint_callback = CheckpointCallback(
