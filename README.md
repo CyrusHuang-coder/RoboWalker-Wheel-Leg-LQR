@@ -162,6 +162,20 @@ wheel-leg/
 │   ├── runner.cpp         # 1000Hz 物理调度、60fps渲染同步、GLFW键鼠回调
 │   └── main.cpp           # 程序启动入口与 Windows UTF-8 代码页初始化
 │
+├── rl/                    # [强化学习进阶模块 (PRCC Residual RL)]
+│   ├── prior_controller.py# 经典串级先验控制器 (无缝对接 RL 残差与刚度缩放接口)
+│   ├── wheel_leg_env.py   # Gymnasium 标准盲走环境 (69维本体感知 + 4维动作解映射 + 正则奖励)
+│   ├── train_rl.py        # PPO 强化学习高吞吐训练调度器 (DummyVecEnv 并行加速)
+│   ├── eval_compare.py    # Baseline LQR vs PRCC-RL 自动化量化评测与学术图表导出
+│   ├── record_compare_demo.py # 高清并排对比 GIF 离线渲染脚本
+│   ├── evaluation_comparison.png # 4.0米全地形对比评测高清图表
+│   ├── models/            # [模型权重]
+│   │   └── best_model.zip # 经过 120k 步收敛锁定的最佳残差策略网络权重
+│   └── terrain/           # [轻起伏地形资产]
+│       ├── generate_terrain.py # 高保真波浪 + 左右交错高斯隆起地形生成器
+│       ├── rough_terrain.png   # 16-bit 高精度地形高度图 (4.0m x 1.0m)
+│       └── wheel_leg_terrain.xml# 嵌入 Heightfield 地形的 MuJoCo 仿真物理描述
+│
 ├── scripts/               # [Python算法与工具包]
 │   ├── test_balance.py    # 闭环平衡与遥控交互原型脚本 (带事件驱动防刷屏日志)
 │   ├── record_demo.py     # 11.0秒全流程机动动作离线跟踪渲染与 GIF 编码脚本
@@ -169,12 +183,13 @@ wheel-leg/
 │
 ├── docs/                  # [完整技术文档与图表资产]
 │   ├── 操作手册.md        # 3天冲刺完整排期、实测参数表、构建指令与变更日志
-│   ├── 学习手册.md        # 动力学推导、反作用力矩佯谬、13项排错档案与答辩通识
+│   ├── 学习手册.md        # 动力学推导、反作用力矩佯谬、17项排错档案与答辩通识
 │   ├── 概要.pdf           # 官方大作业任务书
 │   └── images/            # 仿真装配与接触校验高清图像 (final_verified_*.png)
 │
 ├── demo/                  # [交付物成果归档]
-│   └── wheel_leg_demo.gif # 官方 11.0s 演示高清动态图 (30 fps, 7.15 MB)
+│   ├── wheel_leg_demo.gif # 官方 11.0s 平地基础自平衡与抗扰演示 (30 fps, 7.15 MB)
+│   └── wheel_leg_rl_comparison.gif # LQR vs PRCC-RL 4.0米起伏越障并排对比动画 (25 fps, 3.28 MB)
 │
 ├── car_urdf/              # [URDF功能包] 轻量化几何网格 (STL) 与运动学拓扑
 ├── LQR计算代码/           # [参数与求解] parameter.py (19项物理参数) 与 calculate.py (Riccati求解器)
