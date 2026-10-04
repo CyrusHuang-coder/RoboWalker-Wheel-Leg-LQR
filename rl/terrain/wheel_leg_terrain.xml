@@ -1,0 +1,94 @@
+<mujoco model="wheel_leg_terrain">
+  <compiler angle="radian" meshdir="../../car_urdf/meshes" autolimits="true"/>
+  <option gravity="0 0 -9.81" timestep="0.001" integrator="Euler"/>
+
+  <visual>
+    <headlight ambient="0.45 0.45 0.45" diffuse="0.8 0.8 0.8" specular="0.15 0.15 0.15"/>
+  </visual>
+
+  <default>
+    <geom friction="1.2 0.005 0.0001" condim="3" solref="0.002 1" solimp="0.99 0.999 0.0001 0.5 2"/>
+  </default>
+
+  <asset>
+    <mesh name="base_link" file="base_link.STL"/>
+    <mesh name="left_leg" file="left_leg.STL"/>
+    <mesh name="left_wheel" file="left_wheel.STL"/>
+    <mesh name="right_leg" file="right_leg.STL"/>
+    <mesh name="right_wheel" file="right_wheel.STL"/>
+    
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".15 .25 .35" rgb2=".25 .35 .45"/>
+    <material name="grid" texture="grid" texrepeat="20 5" reflectance="0.1"/>
+
+    <!-- 起伏地形高度图资产 (4.0m x 1.0m, 高度范围 0 ~ 0.0065m = 6.5mm) -->
+    <!-- hfield size: radius_x, radius_y, elevation_z, base_depth_z -->
+    <hfield name="terrain_hfield" file="../../rl/terrain/rough_terrain.png" size="2.0 0.5 0.0065 0.01"/>
+  </asset>
+
+  <worldbody>
+    <!-- 地形中心位于 x=2.0m, y=0.0m，使 x 从 0.0 到 4.0m 连续覆盖 -->
+    <geom name="terrain" type="hfield" hfield="terrain_hfield" pos="2.0 0.0 0.0" material="grid"/>
+    
+    <!-- 边界延伸基底地面，防止超出范围穿模 -->
+    <geom name="ground_sub" type="plane" size="5 2 0.05" pos="2.0 0.0 -0.01" rgba="0.1 0.1 0.1 1"/>
+
+    <!-- 机器人初始位置 (位于平坦起点 x=0.08, z=0.058) -->
+    <body name="base_link" pos="0.08 0 0.058">
+      <freejoint name="root"/>
+      <inertial pos="-0.011138 -0.0175 0.001698" mass="0.16794" diaginertia="1.6308e-05 2.8107e-05 3.0344e-05"/>
+      <geom type="mesh" rgba="0.85 0.45 0.15 1" mesh="base_link"/>
+      
+      <!-- Left Leg -->
+      <body name="left_leg" pos="-0.0093975 0.0000 -0.0010809" quat="0.0159413 0.706926 0.706928 0.0159413">
+        <inertial pos="-0.00175 -0.00163 0.018" quat="0.998982 0.0451138 0 0" mass="0.0087651" diaginertia="1.2889e-06 1.24217e-06 6.45868e-08"/>
+        <joint name="left_hip_joint" range="-3.14 3.14" actuatorfrcrange="-10 10" axis="1 0 0" damping="0.001"/>
+        <geom type="mesh" rgba="0.2 0.6 0.85 1" mesh="left_leg" contype="0" conaffinity="0"/>
+        
+        <!-- Left Wheel -->
+        <body name="left_wheel" pos="-0.0015 -0.0036054 0.039837" quat="0.498403 0.501591 -0.498403 -0.501594">
+          <inertial pos="0 0 -0.004057" quat="0.5 0.5 -0.5 0.5" mass="0.0022065" diaginertia="4.03259e-08 2.24677e-08 2.24677e-08"/>
+          <joint name="left_wheel_joint" axis="0 0 -1" actuatorfrcrange="-10 10" damping="0.0001"/>
+          <geom type="mesh" rgba="0.15 0.15 0.15 1" mesh="left_wheel" contype="0" conaffinity="0"/>
+          <geom type="sphere" size="0.008" friction="1.5 0.01 0.0001" rgba="0 0 0 0" group="3"/>
+        </body>
+      </body>
+
+      <!-- Right Leg -->
+      <body name="right_leg" pos="-0.0093975 -0.0315 -0.0010809" quat="0.0159413 0.706926 0.706928 0.0159413">
+        <inertial pos="-0.00175 -0.00163 0.018" quat="0.998982 0.0451138 0 0" mass="0.0087651" diaginertia="1.2889e-06 1.24217e-06 6.45868e-08"/>
+        <joint name="right_hip_joint" range="-3.14 3.14" actuatorfrcrange="-10 10" axis="1 0 0" damping="0.001"/>
+        <geom type="mesh" rgba="0.2 0.85 0.45 1" mesh="right_leg" contype="0" conaffinity="0"/>
+        
+        <!-- Right Wheel -->
+        <body name="right_wheel" pos="-0.002 -0.0036054 0.039837" quat="0.501591 -0.498403 0.501594 -0.498403">
+          <inertial pos="0 0 -0.004057" quat="0.5 0.5 -0.5 0.5" mass="0.0022065" diaginertia="4.03259e-08 2.24677e-08 2.24677e-08"/>
+          <joint name="right_wheel_joint" axis="0 0 1" actuatorfrcrange="-10 10" damping="0.0001"/>
+          <geom type="mesh" rgba="0.15 0.15 0.15 1" mesh="right_wheel" contype="0" conaffinity="0"/>
+          <geom type="sphere" size="0.008" friction="1.5 0.01 0.0001" rgba="0 0 0 0" group="3"/>
+        </body>
+      </body>
+    </body>
+  </worldbody>
+
+  <actuator>
+    <motor name="left_hip_motor" joint="left_hip_joint" ctrlrange="-10 10"/>
+    <motor name="left_wheel_motor" joint="left_wheel_joint" ctrlrange="-10 10"/>
+    <motor name="right_hip_motor" joint="right_hip_joint" ctrlrange="-10 10"/>
+    <motor name="right_wheel_motor" joint="right_wheel_joint" ctrlrange="-10 10"/>
+  </actuator>
+
+  <sensor>
+    <framepos name="body_pos" objtype="body" objname="base_link"/>
+    <framequat name="body_quat" objtype="body" objname="base_link"/>
+    <framelinvel name="body_linvel" objtype="body" objname="base_link"/>
+    <frameangvel name="body_angvel" objtype="body" objname="base_link"/>
+    <jointpos name="left_hip_pos" joint="left_hip_joint"/>
+    <jointvel name="left_hip_vel" joint="left_hip_joint"/>
+    <jointpos name="right_hip_pos" joint="right_hip_joint"/>
+    <jointvel name="right_hip_vel" joint="right_hip_joint"/>
+    <jointpos name="left_wheel_pos" joint="left_wheel_joint"/>
+    <jointvel name="left_wheel_vel" joint="left_wheel_joint"/>
+    <jointpos name="right_wheel_pos" joint="right_wheel_joint"/>
+    <jointvel name="right_wheel_vel" joint="right_wheel_joint"/>
+  </sensor>
+</mujoco>
