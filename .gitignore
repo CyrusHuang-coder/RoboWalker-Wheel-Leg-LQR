@@ -24,3 +24,9 @@ Thumbs.db
 [Dd]esktop.ini
 
 push_to_github.bat
+
+# 强化学习临时数据与调试产物 (保留代码与 best_model.zip)
+rl/logs/
+rl/models/ppo_wheel_leg_*.zip
+rl/baseline_data.npz
+rl/debug_eval.py
