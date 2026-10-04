@@ -39,19 +39,31 @@
     <geom name="curb_left"  type="box" size="2.0 0.008 0.006" pos="2.0 0.08 0.005" rgba="0.7 0.7 0.7 0.9" contype="0" conaffinity="0"/>
     <geom name="curb_right" type="box" size="2.0 0.008 0.006" pos="2.0 -0.11 0.005" rgba="0.7 0.7 0.7 0.9" contype="0" conaffinity="0"/>
 
-    <!-- 障碍凸起视觉提示带 (纯视觉无碰撞 contype=0 conaffinity=0，肉眼直观看到凸起位置) -->
-    <!-- 左侧交错凸起 1: x=2.00, y=-0.0015 -->
-    <geom name="vis_bump1" type="box" size="0.04 0.015 0.002" pos="2.00 -0.0015 0.0035" rgba="0.95 0.75 0.1 0.85" contype="0" conaffinity="0"/>
-    <!-- 右侧交错凸起 2: x=2.25, y=-0.0335 -->
-    <geom name="vis_bump2" type="box" size="0.04 0.015 0.002" pos="2.25 -0.0335 0.0035" rgba="0.95 0.35 0.1 0.85" contype="0" conaffinity="0"/>
-    <!-- 左侧交错凸起 3: x=2.50, y=-0.0015 -->
-    <geom name="vis_bump3" type="box" size="0.05 0.015 0.002" pos="2.50 -0.0015 0.0040" rgba="0.95 0.75 0.1 0.85" contype="0" conaffinity="0"/>
-    <!-- 右侧交错凸起 4: x=2.75, y=-0.0335 -->
-    <geom name="vis_bump4" type="box" size="0.05 0.015 0.002" pos="2.75 -0.0335 0.0040" rgba="0.95 0.35 0.1 0.85" contype="0" conaffinity="0"/>
-    <!-- 双轮横向减速垄 5: x=3.00 -->
-    <geom name="vis_bump5" type="box" size="0.04 0.050 0.002" pos="3.00 -0.0175 0.0032" rgba="0.85 0.15 0.15 0.85" contype="0" conaffinity="0"/>
-    <!-- 左侧交错凸起 6: x=3.25, y=-0.0015 -->
-    <geom name="vis_bump6" type="box" size="0.04 0.015 0.002" pos="3.25 -0.0015 0.0035" rgba="0.95 0.75 0.1 0.85" contype="0" conaffinity="0"/>
+    <!-- 真实 3D 减速垄造型 (黄色圆弧减速带 + 黑色橡胶端盖，肉眼清晰立体，无碰撞纯视觉 contype=0 conaffinity=0) -->
+    <!-- 障碍 1: 左轮单侧减速垄 (x=2.00, y=-0.0015, 高度 4.8mm) -->
+    <geom name="bump1_arch" type="cylinder" size="0.06 0.020" pos="2.00 -0.0015 -0.0552" euler="90 0 0" rgba="0.95 0.75 0.10 1" contype="0" conaffinity="0"/>
+    <geom name="bump1_capL" type="box" size="0.035 0.002 0.002" pos="2.00 0.019 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+    <geom name="bump1_capR" type="box" size="0.035 0.002 0.002" pos="2.00 -0.022 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+
+    <!-- 障碍 2: 右轮单侧减速垄 (x=2.30, y=-0.0335, 高度 4.8mm) -->
+    <geom name="bump2_arch" type="cylinder" size="0.06 0.020" pos="2.30 -0.0335 -0.0552" euler="90 0 0" rgba="0.95 0.75 0.10 1" contype="0" conaffinity="0"/>
+    <geom name="bump2_capL" type="box" size="0.035 0.002 0.002" pos="2.30 -0.013 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+    <geom name="bump2_capR" type="box" size="0.035 0.002 0.002" pos="2.30 -0.054 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+
+    <!-- 障碍 3: 左轮单侧减速垄 (x=2.60, y=-0.0015, 高度 4.8mm) -->
+    <geom name="bump3_arch" type="cylinder" size="0.06 0.020" pos="2.60 -0.0015 -0.0552" euler="90 0 0" rgba="0.95 0.75 0.10 1" contype="0" conaffinity="0"/>
+    <geom name="bump3_capL" type="box" size="0.035 0.002 0.002" pos="2.60 0.019 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+    <geom name="bump3_capR" type="box" size="0.035 0.002 0.002" pos="2.60 -0.022 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+
+    <!-- 障碍 4: 右轮单侧减速垄 (x=2.90, y=-0.0335, 高度 4.8mm) -->
+    <geom name="bump4_arch" type="cylinder" size="0.06 0.020" pos="2.90 -0.0335 -0.0552" euler="90 0 0" rgba="0.95 0.75 0.10 1" contype="0" conaffinity="0"/>
+    <geom name="bump4_capL" type="box" size="0.035 0.002 0.002" pos="2.90 -0.013 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+    <geom name="bump4_capR" type="box" size="0.035 0.002 0.002" pos="2.90 -0.054 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+
+    <!-- 障碍 5: 双轮全幅减速垄 (x=3.20, 全宽黄色警示减速排) -->
+    <geom name="bump5_arch" type="cylinder" size="0.06 0.045" pos="3.20 -0.0175 -0.0555" euler="90 0 0" rgba="0.85 0.25 0.18 1" contype="0" conaffinity="0"/>
+    <geom name="bump5_capL" type="box" size="0.035 0.002 0.002" pos="3.20 0.028 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
+    <geom name="bump5_capR" type="box" size="0.035 0.002 0.002" pos="3.20 -0.063 0.002" rgba="0.18 0.18 0.20 1" contype="0" conaffinity="0"/>
 
     <!-- 机器人初始位置 (位于平坦起点 x=0.08, z=0.058) -->
     <body name="base_link" pos="0.08 0 0.058">

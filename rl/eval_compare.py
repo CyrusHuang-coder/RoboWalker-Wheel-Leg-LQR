@@ -24,7 +24,7 @@ from prior_controller import PriorController, quat2rpy
 from eval_baseline import extract_sensors
 
 
-def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=15.0, v_cmd=0.10):
+def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=25.0, v_cmd=0.16):
     """
     运行单次测试评估
     mode: "lqr" 或 "residual_rl"
@@ -119,9 +119,9 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=15.0
 
         # 解码残差指令 (与训练环境严格一致)
         if mode == "residual_rl":
-            delta_pitch = float(action[0] * 0.015)
-            delta_hip   = float(action[1] * 0.05)
-            delta_roll  = float(action[2] * 0.06)
+            delta_pitch = float(action[0] * 0.005)
+            delta_hip   = float(action[1] * 0.04)
+            delta_roll  = float(action[2] * 0.08)
             k_scale     = float(1.0 + action[3] * 0.3)
         else:
             delta_pitch = 0.0

@@ -35,10 +35,10 @@ def record_comparison():
     ctrl_lqr = PriorController()
     ctrl_rl  = PriorController()
 
-    # 将机器人置于颠簸凸起前沿 (x = 1.65m)，直面 2.0m~3.3m 核心障碍群
-    data_lqr.qpos[0] = 1.65
+    # 将机器人置于颠簸凸起前沿 (x = 1.80m)，直面 2.0m~3.3m 实体减速垄障碍群
+    data_lqr.qpos[0] = 1.80
     data_lqr.qpos[2] = 0.060
-    data_rl.qpos[0]  = 1.65
+    data_rl.qpos[0]  = 1.80
     data_rl.qpos[2]  = 0.060
 
     # 预热沉降
@@ -52,9 +52,9 @@ def record_comparison():
     ctrl_lqr.reset(current_x=init_x_lqr, current_yaw=0.0)
     ctrl_rl.reset(current_x=init_x_rl, current_yaw=0.0)
 
-    # 设定前向巡航速度 (使两者在障碍区推进节拍一致)
-    ctrl_lqr.set_target_velocity(0.08)
-    ctrl_rl.set_target_velocity(0.12)
+    # 设定完全相同的前向巡航速度 (两者以 0.16 m/s 高速并排冲锋)
+    ctrl_lqr.set_target_velocity(0.16)
+    ctrl_rl.set_target_velocity(0.16)
 
     rl_policy = PPO.load("rl/models/best_model.zip")
 
@@ -68,13 +68,13 @@ def record_comparison():
     mujoco.mjv_defaultCamera(cam_rl)
 
     for cam in [cam_lqr, cam_rl]:
-        cam.distance = 0.30
+        cam.distance = 0.32
         cam.elevation = -14
         cam.azimuth = 145
 
     fps = 25
     dt = model.opt.timestep # 0.001s
-    duration = 9.0 # 录制穿越颠簸凸起核心段的 9 秒
+    duration = 8.5 # 录制穿越减速垄全过程
     render_interval = int(1.0 / fps / dt) # 每 40 步录制一帧
     total_steps = int(duration / dt)
 
@@ -123,7 +123,7 @@ def record_comparison():
                 s_rl['right_hip_vel'] * 0.1,
                 s_rl['left_wheel_vel'] * 0.05,
                 s_rl['right_wheel_vel'] * 0.05,
-                0.12 * 5.0,
+                0.16 * 5.0,
                 ctrl_rl.last_target_pitch * 5.0,
                 ctrl_rl.last_u_balance * 20.0,
                 last_action[0], last_action[1], last_action[2], last_action[3]
@@ -133,9 +133,9 @@ def record_comparison():
             action_rl, _ = rl_policy.predict(obs_history.flatten(), deterministic=True)
             last_action = action_rl.copy()
 
-        delta_pitch = float(action_rl[0] * 0.015)
-        delta_hip   = float(action_rl[1] * 0.05)
-        delta_roll  = float(action_rl[2] * 0.06)
+        delta_pitch = float(action_rl[0] * 0.005)
+        delta_hip   = float(action_rl[1] * 0.04)
+        delta_roll  = float(action_rl[2] * 0.08)
         k_scale     = float(1.0 + action_rl[3] * 0.3)
 
         act_rl = ctrl_rl.compute(
@@ -151,7 +151,6 @@ def record_comparison():
 
         # 3. 画面渲染
         if step % render_interval == 0:
-            # 动态跟踪相机
             cam_lqr.lookat = [data_lqr.sensor('body_pos').data[0], 0.0, 0.045]
             cam_rl.lookat  = [data_rl.sensor('body_pos').data[0], 0.0, 0.045]
 
@@ -161,7 +160,6 @@ def record_comparison():
             renderer_rl.update_scene(data_rl, camera=cam_rl)
             img_rl  = Image.fromarray(renderer_rl.render())
 
-            # 拼合双画面 (宽 960 x 高 360)
             combined = Image.new("RGB", (960, 360))
             combined.paste(img_lqr, (0, 0))
             combined.paste(img_rl, (480, 0))
@@ -169,25 +167,25 @@ def record_comparison():
             draw = ImageDraw.Draw(combined)
             # 左侧：LQR 遥测面板
             draw.rectangle([(10, 10), (270, 38)], fill=(180, 30, 30))
-            draw.text((15, 14), "BASELINE: PURE LQR (STIFF)", fill=(255, 255, 255), font=font_bold)
+            draw.text((15, 14), "BASELINE: PURE LQR (RIGID)", fill=(255, 255, 255), font=font_bold)
             roll_lqr_deg = np.degrees(s_lqr['roll'])
             roll_lqr_col = (255, 60, 60) if abs(roll_lqr_deg) > 2.5 else (255, 180, 180)
-            status_lqr = " [SEVERE TILT!]" if abs(roll_lqr_deg) > 2.5 else ""
+            status_lqr = " [SEVERE TILT!]" if abs(roll_lqr_deg) > 2.5 else " [Stiff PD]"
             draw.text((15, 45), f"Body Roll: {roll_lqr_deg:+5.1f} deg{status_lqr}", fill=roll_lqr_col, font=font)
-            draw.text((15, 68), f"Pos x: {s_lqr['x_pos']:.2f}m | Stiff Leg PD", fill=(200, 200, 200), font=font)
+            draw.text((15, 68), f"Pos x: {s_lqr['x_pos']:.2f}m | Vel: {s_lqr['forward_vel']:.2f} m/s", fill=(210, 210, 210), font=font)
 
             # 右侧：PRCC-RL 遥测面板
             draw.rectangle([(490, 10), (790, 38)], fill=(30, 140, 40))
             draw.text((495, 14), "OURS: PRCC RESIDUAL RL", fill=(255, 255, 255), font=font_bold)
             roll_rl_deg = np.degrees(s_rl['roll'])
-            status_rl = " (Suspension Absorbing)" if abs(delta_roll) > 0.005 else " (Level)"
+            status_rl = " [Active Suspension]" if abs(delta_roll) > 0.005 else " [Level]"
             draw.text((495, 45), f"Body Roll: {roll_rl_deg:+5.1f} deg{status_rl}", fill=(120, 255, 120), font=font)
-            draw.text((495, 68), f"Pos x: {s_rl['x_pos']:.2f}m | Diff Leg: {np.degrees(delta_roll):+4.1f}° | k: {k_scale:.2f}x", fill=(210, 255, 210), font=font)
+            draw.text((495, 68), f"Pos x: {s_rl['x_pos']:.2f}m | Vel: {s_rl['forward_vel']:.2f} m/s | Leg Diff: {np.degrees(delta_roll):+4.1f}°", fill=(210, 255, 210), font=font)
 
-            # 底部地形说明与时间
+            # 底部地形与航速说明
             draw.line([(480, 0), (480, 360)], fill=(255, 255, 255), width=2)
-            draw.rectangle([(280, 328), (680, 354)], fill=(20, 20, 20))
-            draw.text((290, 332), f"t = {t:.1f}s | Bumps: Yellow(L) Orange(R) Red(Bar)", fill=(255, 215, 0), font=font)
+            draw.rectangle([(250, 328), (710, 354)], fill=(20, 20, 20))
+            draw.text((260, 332), f"t = {t:.1f}s | Speed Bumps: Yellow(4.8mm) Red(4.5mm) | v_cmd=0.16m/s", fill=(255, 215, 0), font=font)
 
             frames.append(combined)
 

@@ -80,7 +80,7 @@ class WheelLegRoughTerrainEnv(gym.Env):
         self.last_action = np.zeros(4, dtype=np.float32)
 
         # 任务目标与参数
-        self.target_v = 0.10  # 标称巡航目标速度 0.10 m/s
+        self.target_v = 0.16  # 巡航目标速度提升至 0.16 m/s (与 LQR 速度完全对齐)
         self.r_wheel = 0.008  # 车轮半径 8 mm
         self.max_episode_steps = 400  # 400 * 0.02s = 8.0s
         self.current_step = 0
@@ -184,11 +184,11 @@ class WheelLegRoughTerrainEnv(gym.Env):
     def step(self, action):
         action = np.clip(action, -1.0, 1.0)
         
-        # 动作解映射 (Action Scaling: 极其温和的残差调节，先验为主，残差为辅)
-        delta_pitch = float(action[0] * 0.015)  # 俯仰微调 [-0.015, 0.015] rad (~0.85度，避免推倒车身)
-        delta_hip   = float(action[1] * 0.05)   # 腿高微调 [-0.05, 0.05] rad
-        delta_roll  = float(action[2] * 0.06)   # 差动防侧倾 [-0.06, 0.06] rad (~3.4度)
-        k_scale     = float(1.0 + action[3] * 0.3) # 刚度比 [0.7, 1.3]
+        # 动作解映射 (PRCC 专注悬架顺应与差动防侧倾，绝不拖慢车速)
+        delta_pitch = float(action[0] * 0.005)  # 俯仰极轻微残差 [-0.005, 0.005] rad，不破坏纵向巡航
+        delta_hip   = float(action[1] * 0.04)   # 腿高基准微调
+        delta_roll  = float(action[2] * 0.08)   # 差动横滚行程提升至 0.08 rad (~4.6度，等效腿高差 6.4mm，完全吞没减速垄)
+        k_scale     = float(1.0 + action[3] * 0.3) # 虚拟悬架刚度比 [0.7, 1.3]
 
         total_slip_penalty = 0.0
         z_vel_penalty = 0.0
@@ -231,23 +231,24 @@ class WheelLegRoughTerrainEnv(gym.Env):
         self.obs_history[-1] = current_obs
 
         # 计算奖励 (Reward Shaping)
-        # 1. 前进速度跟踪项
-        r_track = np.exp(-15.0 * (sensors['forward_vel'] - self.target_v)**2)
+        # 1. 前向推进奖励与速度跟踪 (鼓励高速冲锋，与 LQR 速度严丝合缝)
+        v_fwd = max(0.0, sensors['forward_vel'])
+        r_forward = 10.0 * min(v_fwd, self.target_v * 1.2)
+        r_track   = np.exp(-10.0 * (sensors['forward_vel'] - self.target_v)**2)
         # 2. 存活奖励
-        r_alive = 1.0
-        # 3. 横滚与俯仰惩罚
-        r_roll  = 10.0 * (sensors['roll']**2)
-        r_pitch = 2.0 * (sensors['pitch']**2)
-        r_angvel = 0.1 * (sensors['roll_rate']**2 + sensors['pitch_rate']**2)
-        # 4. 滑移率防打滑惩罚
-        r_slip = 5.0 * total_slip_penalty
-        # 5. 机身竖向平稳惩罚 (吸震效果)
+        r_alive   = 2.0
+        # 3. 强力横滚与角速度抑制 (消除单侧凸起冲击)
+        r_roll    = 25.0 * (sensors['roll']**2)
+        r_pitch   = 5.0 * (sensors['pitch']**2)
+        r_angvel  = 0.5 * (sensors['roll_rate']**2 + sensors['pitch_rate']**2)
+        # 4. 滑移率与垂直颠簸惩罚
+        r_slip    = 3.0 * total_slip_penalty
         r_z_bounce = 5.0 * z_vel_penalty
-        # 6. 残差幅值与动作平滑惩罚 (杜绝满幅 bang-bang 震荡)
-        r_action_mag = 0.05 * np.sum(action**2)
-        r_smooth     = 0.05 * np.sum((action - self.last_action)**2)
+        # 5. 强平滑惩罚 (杜绝 50Hz 抽搐，逼迫策略输出如液压减震般平滑丝滑的悬架动作)
+        r_action_mag = 0.03 * np.sum(action**2)
+        r_smooth     = 0.20 * np.sum((action - self.last_action)**2)
 
-        reward = (r_track + r_alive 
+        reward = (r_forward + r_track + r_alive 
                   - r_roll - r_pitch - r_angvel 
                   - r_slip - r_z_bounce - r_action_mag - r_smooth)
 
