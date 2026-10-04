@@ -48,13 +48,36 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=25.0
     policy_substep = 20  # 50Hz 策略更新 (每 20 步 1ms 物理步)
     total_steps = int(duration / dt)
 
-    # 状态与历史缓存
-    obs_history = np.zeros((3, 23), dtype=np.float32)
-    last_action = np.zeros(4, dtype=np.float32)
-
     # 预热沉降
     for _ in range(30):
         mujoco.mj_step(model, data)
+
+    # 状态与历史缓存 (用预热稳定后的传感器真值填充，杜绝全 0 冷启动引发的动作假突跳)
+    obs_history = np.zeros((3, 23), dtype=np.float32)
+    last_action = np.zeros(4, dtype=np.float32)
+    init_s = extract_sensors(model, data)
+    init_obs = np.array([
+        np.sin(init_s['pitch']), np.cos(init_s['pitch']),
+        np.sin(init_s['roll']),  np.cos(init_s['roll']),
+        init_s['roll_rate'] * 0.2,
+        init_s['pitch_rate'] * 0.2,
+        init_s['yaw_rate'] * 0.2,
+        init_s['forward_vel'] * 5.0,
+        init_s['body_linvel'][1] * 5.0,
+        init_s['body_linvel'][2] * 5.0,
+        init_s['left_hip_pos'],
+        init_s['left_hip_vel'] * 0.1,
+        init_s['right_hip_pos'],
+        init_s['right_hip_vel'] * 0.1,
+        init_s['left_wheel_vel'] * 0.05,
+        init_s['right_wheel_vel'] * 0.05,
+        v_cmd * 5.0,
+        controller.last_target_pitch * 5.0,
+        controller.last_u_balance * 20.0,
+        0.0, 0.0, 0.0, 0.0
+    ], dtype=np.float32)
+    for i in range(3):
+        obs_history[i] = init_obs
 
     history = {
         'time': [],
@@ -127,8 +150,8 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=25.0
         if mode == "residual_rl":
             delta_pitch = 0.0                       # 锁定俯仰残差，速度由先验闭环全权负责
             delta_hip   = 0.0
-            delta_roll  = float(action[2] * 0.08)   # 单侧独立屈曲残差调谐 [-0.08, 0.08] rad
-            k_scale     = float(1.0 + action[3] * 0.25)
+            delta_roll  = float(action[2] * 0.10)   # 单侧独立屈曲残差调谐 [-0.10, 0.10] rad
+            k_scale     = float(1.0 + action[3] * 0.40)
         else:
             delta_pitch = 0.0
             delta_hip   = 0.0

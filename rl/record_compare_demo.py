@@ -83,6 +83,30 @@ def record_comparison():
     last_action = np.zeros(4, dtype=np.float32)
     action_rl = np.zeros(4, dtype=np.float32)
 
+    init_s_rl = extract_sensors(model, data_rl)
+    init_obs_rl = np.array([
+        np.sin(init_s_rl['pitch']), np.cos(init_s_rl['pitch']),
+        np.sin(init_s_rl['roll']),  np.cos(init_s_rl['roll']),
+        init_s_rl['roll_rate'] * 0.2,
+        init_s_rl['pitch_rate'] * 0.2,
+        init_s_rl['yaw_rate'] * 0.2,
+        init_s_rl['forward_vel'] * 5.0,
+        init_s_rl['body_linvel'][1] * 5.0,
+        init_s_rl['body_linvel'][2] * 5.0,
+        init_s_rl['left_hip_pos'],
+        init_s_rl['left_hip_vel'] * 0.1,
+        init_s_rl['right_hip_pos'],
+        init_s_rl['right_hip_vel'] * 0.1,
+        init_s_rl['left_wheel_vel'] * 0.05,
+        init_s_rl['right_wheel_vel'] * 0.05,
+        0.16 * 5.0,
+        ctrl_rl.last_target_pitch * 5.0,
+        ctrl_rl.last_u_balance * 20.0,
+        0.0, 0.0, 0.0, 0.0
+    ], dtype=np.float32)
+    for i in range(3):
+        obs_history[i] = init_obs_rl
+
     # 预加载字体
     try:
         font = ImageFont.truetype("arial.ttf", 15)
@@ -135,8 +159,8 @@ def record_comparison():
 
         delta_pitch = 0.0
         delta_hip   = 0.0
-        delta_roll  = float(action_rl[2] * 0.08)
-        k_scale     = float(1.0 + action_rl[3] * 0.25)
+        delta_roll  = float(action_rl[2] * 0.10)
+        k_scale     = float(1.0 + action_rl[3] * 0.40)
 
         act_rl = ctrl_rl.compute(
             s_rl, dt=dt,

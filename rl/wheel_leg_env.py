@@ -187,8 +187,8 @@ class WheelLegRoughTerrainEnv(gym.Env):
         # 动作解映射 (PRCC 专注单侧独立屈曲顺应与避震，锁定俯仰由先验闭环全权负责，彻底杜绝超速失控)
         delta_pitch = 0.0                       # 锁定俯仰残差，速度与纵向平衡完全由先验控制器闭环掌控
         delta_hip   = 0.0                       # 锁定标称直立基准
-        delta_roll  = float(action[2] * 0.08)   # 单侧独立屈曲残差调谐 [-0.08, 0.08] rad = [-4.6°, 4.6°]
-        k_scale     = float(1.0 + action[3] * 0.25) # 虚拟悬架刚度比 [0.75, 1.25]
+        delta_roll  = float(action[2] * 0.10)   # 单侧独立屈曲残差调谐 [-0.10, 0.10] rad = [-5.7°, 5.7°]
+        k_scale     = float(1.0 + action[3] * 0.40) # 虚拟悬架刚度比 [0.60, 1.40]，允许撞击时显著软化
 
         z_vel_penalty = 0.0
 
@@ -225,30 +225,35 @@ class WheelLegRoughTerrainEnv(gym.Env):
         self.obs_history[-1] = current_obs
 
         # 计算奖励 (Reward Shaping)
-        # 1. 速度跟踪与平稳巡航奖励 (在 target_v 附近获得最高奖励)
+        # 1. 速度跟踪与平稳巡航奖励
         v_fwd = sensors['forward_vel']
         r_speed_track = 10.0 * np.exp(-30.0 * (v_fwd - self.target_v)**2)
         r_forward = 5.0 * np.clip(v_fwd / self.target_v, 0.0, 1.2)
         # 2. 存活奖励
         r_alive   = 2.0
-        # 3. 赛道对中与直线巡线约束 (严厉惩罚偏离中线 y=-0.0175 与航向跑偏，杜绝撞击边缘护栏)
+        # 3. 赛道对中与直线巡线约束 (强化偏航角速度抑制，彻底杜绝单侧缩腿造成的蛇形S走位)
         y_dev = sensors['y_pos'] - (-0.0175)
-        r_lateral = 60.0 * (y_dev**2)
-        r_yaw     = 15.0 * (sensors['yaw']**2)
-        # 4. 强力横滚与角速度抑制 (核心避震目标)
-        r_roll    = 45.0 * (sensors['roll']**2)
+        r_lateral = 35.0 * (y_dev**2)
+        r_yaw     = 30.0 * (sensors['yaw']**2) + 2.5 * (sensors['yaw_rate']**2)
+        # 4. 强力横滚与角速度抑制 (核心避震目标：大幅提高权重压制峰值)
+        r_roll    = 85.0 * (sensors['roll']**2) + 1.5 * (sensors['roll_rate']**2)
         r_pitch   = 8.0 * (sensors['pitch']**2)
-        r_angvel  = 0.5 * (sensors['roll_rate']**2 + sensors['pitch_rate']**2)
-        # 5. 垂直颠簸惩罚
-        r_z_bounce = 3.0 * z_vel_penalty
-        # 6. 动作平滑惩罚 (杜绝高频锯齿折线)
-        r_action_mag = 0.05 * np.sum(action**2)
-        r_smooth     = 0.25 * np.sum((action - self.last_action)**2)
+        # 5. 垂直颠簸惩罚 (抑制机身高度起伏跳跃)
+        r_z_bounce = 8.0 * z_vel_penalty
+        # 6. 平原区零位死区硬锚定 (当横滚很小时，强力惩罚非零动作，杜绝平原区产生 0.6° 的常值零偏)
+        if abs(sensors['roll']) < np.radians(0.4):
+            r_flat_zero = 30.0 * (delta_roll**2)
+        else:
+            r_flat_zero = 0.0
+        # 7. 动作平滑与幅度惩罚
+        r_action_mag = 0.15 * np.sum(action**2)
+        r_smooth     = 0.35 * np.sum((action - self.last_action)**2)
 
         reward = (r_speed_track + r_forward + r_alive 
                   - r_lateral - r_yaw
-                  - r_roll - r_pitch - r_angvel 
-                  - r_z_bounce - r_action_mag - r_smooth)
+                  - r_roll - r_pitch 
+                  - r_z_bounce - r_flat_zero
+                  - r_action_mag - r_smooth)
 
         self.last_action = action.copy()
         self.current_step += 1
