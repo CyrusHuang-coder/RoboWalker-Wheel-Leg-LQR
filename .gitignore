@@ -1,0 +1,24 @@
+# 编译与二进制产物 (由 CMake 现场生成，无需进仓库)
+build/
+bin/*.exe
+bin/*.dll
+*.obj
+*.o
+*.a
+*.lib
+
+# 本地编辑器与 IDE 配置
+.vscode/
+.idea/
+*.swp
+*~
+
+# Python 缓存
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# 操作系统临时文件
+Thumbs.db
+[Dd]esktop.ini

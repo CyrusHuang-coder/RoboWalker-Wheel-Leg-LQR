@@ -1,0 +1,275 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- This URDF was automatically created by SolidWorks to URDF Exporter! Originally created by Stephen Brawner (brawner@gmail.com) 
+     Commit Version: 1.6.0-4-g7f85cfe  Build Version: 1.6.7995.38578
+     For more information, please see http://wiki.ros.org/sw_urdf_exporter -->
+<robot
+  name="car_urdf">
+  <link
+    name="base_link">
+    <inertial>
+      <origin
+        xyz="-0.011138 -0.0175 0.0016979"
+        rpy="0 0 0" />
+      <mass
+        value="0.16794" />
+      <inertia
+        ixx="1.6308E-05"
+        ixy="6.6934E-22"
+        ixz="2.9248E-06"
+        iyy="2.8107E-05"
+        iyz="-1.1106E-22"
+        izz="3.0344E-05" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/base_link.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link
+    name="left_leg">
+    <inertial>
+      <origin
+        xyz="-0.00175 -0.011065 0.018651"
+        rpy="0 0 0" />
+      <mass
+        value="0.0087651" />
+      <inertia
+        ixx="1.2889E-06"
+        ixy="-1.1577E-24"
+        ixz="-1.8273E-23"
+        iyy="1.2326E-06"
+        iyz="1.0571E-07"
+        izz="7.4154E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/left_leg.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/left_leg.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="left_hip_joint"
+    type="revolute">
+    <origin
+      xyz="-0.00939750864531261 0 -0.0010809064290457"
+      rpy="3.09646333068238 0 1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="left_leg" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="10"
+      velocity="50" />
+  </joint>
+  <link
+    name="left_wheel">
+    <inertial>
+      <origin
+        xyz="3.4694E-18 0 -0.0025572"
+        rpy="0 0 0" />
+      <mass
+        value="0.0022065" />
+      <inertia
+        ixx="2.2468E-08"
+        ixy="2.068E-25"
+        ixz="1.1975E-25"
+        iyy="2.2468E-08"
+        iyz="-1.6142E-26"
+        izz="4.0326E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/left_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.29804 0.29804 0.29804 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/left_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="left_wheel_joint"
+    type="continuous">
+    <origin
+      xyz="-0.0015 -0.00360544580779829 0.0398371781195284"
+      rpy="-1.5707963267949 -0.0838788308151843 1.5707963267949" />
+    <parent
+      link="left_leg" />
+    <child
+      link="left_wheel" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      effort="10"
+      velocity="100" />
+  </joint>
+  <link
+    name="right_leg">
+    <inertial>
+      <origin
+        xyz="-0.00175 -0.0016286 0.017995"
+        rpy="0 0 0" />
+      <mass
+        value="0.0087651" />
+      <inertia
+        ixx="1.2889E-06"
+        ixy="-1.4707E-24"
+        ixz="-9.1737E-24"
+        iyy="1.2326E-06"
+        iyz="1.0571E-07"
+        izz="7.4154E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/right_leg.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.77647 0.75686 0.73725 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/right_leg.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="right_hip_joint"
+    type="revolute">
+    <origin
+      xyz="-0.00939750864531261 -0.0315000000000001 -0.0010809064290457"
+      rpy="3.09646333068238 0 1.5707963267949" />
+    <parent
+      link="base_link" />
+    <child
+      link="right_leg" />
+    <axis
+      xyz="1 0 0" />
+    <limit
+      lower="-3.14"
+      upper="3.14"
+      effort="10"
+      velocity="50" />
+  </joint>
+  <link
+    name="right_wheel">
+    <inertial>
+      <origin
+        xyz="0 0 -0.0040572"
+        rpy="0 0 0" />
+      <mass
+        value="0.0022065" />
+      <inertia
+        ixx="2.2468E-08"
+        ixy="0"
+        ixz="6.9605E-26"
+        iyy="2.2468E-08"
+        iyz="-2.2147E-26"
+        izz="4.0326E-08" />
+    </inertial>
+    <visual>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/right_wheel.STL" />
+      </geometry>
+      <material
+        name="">
+        <color
+          rgba="0.29804 0.29804 0.29804 1" />
+      </material>
+    </visual>
+    <collision>
+      <origin
+        xyz="0 0 0"
+        rpy="0 0 0" />
+      <geometry>
+        <mesh
+          filename="package://car_urdf/meshes/right_wheel.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint
+    name="right_wheel_joint"
+    type="continuous">
+    <origin
+      xyz="-0.002 -0.00360544580779829 0.0398371781195284"
+      rpy="-1.5707963267949 0.00637981499963452 -1.5707963267949" />
+    <parent
+      link="right_leg" />
+    <child
+      link="right_wheel" />
+    <axis
+      xyz="0 0 1" />
+    <limit
+      effort="10"
+      velocity="100" />
+  </joint>
+</robot>
