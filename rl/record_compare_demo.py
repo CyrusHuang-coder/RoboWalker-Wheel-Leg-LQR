@@ -35,18 +35,28 @@ def record_comparison():
     ctrl_lqr = PriorController()
     ctrl_rl  = PriorController()
 
-    ctrl_lqr.set_target_velocity(0.09)
-    ctrl_rl.set_target_velocity(0.09)
-
-    rl_policy = PPO.load("rl/models/best_model.zip")
+    # 将机器人置于颠簸凸起前沿 (x = 1.65m)，直面 2.0m~3.3m 核心障碍群
+    data_lqr.qpos[0] = 1.65
+    data_lqr.qpos[2] = 0.060
+    data_rl.qpos[0]  = 1.65
+    data_rl.qpos[2]  = 0.060
 
     # 预热沉降
-    for _ in range(30):
+    for _ in range(50):
         mujoco.mj_step(model, data_lqr)
         mujoco.mj_step(model, data_rl)
 
-    ctrl_lqr.reset(current_x=data_lqr.sensor('body_pos').data[0], current_yaw=0.0)
-    ctrl_rl.reset(current_x=data_rl.sensor('body_pos').data[0], current_yaw=0.0)
+    init_x_lqr = data_lqr.sensor('body_pos').data[0]
+    init_x_rl  = data_rl.sensor('body_pos').data[0]
+
+    ctrl_lqr.reset(current_x=init_x_lqr, current_yaw=0.0)
+    ctrl_rl.reset(current_x=init_x_rl, current_yaw=0.0)
+
+    # 设定前向巡航速度 (使两者在障碍区推进节拍一致)
+    ctrl_lqr.set_target_velocity(0.08)
+    ctrl_rl.set_target_velocity(0.12)
+
+    rl_policy = PPO.load("rl/models/best_model.zip")
 
     # 渲染器设置 (每个画面 360x480)
     renderer_lqr = mujoco.Renderer(model, 360, 480)
@@ -58,13 +68,13 @@ def record_comparison():
     mujoco.mjv_defaultCamera(cam_rl)
 
     for cam in [cam_lqr, cam_rl]:
-        cam.distance = 0.25
-        cam.elevation = -15
-        cam.azimuth = 135
+        cam.distance = 0.30
+        cam.elevation = -14
+        cam.azimuth = 145
 
     fps = 25
     dt = model.opt.timestep # 0.001s
-    duration = 10.0 # 录制穿越颠簸凸起核心段的 10 秒
+    duration = 9.0 # 录制穿越颠簸凸起核心段的 9 秒
     render_interval = int(1.0 / fps / dt) # 每 40 步录制一帧
     total_steps = int(duration / dt)
 
@@ -75,13 +85,13 @@ def record_comparison():
 
     # 预加载字体
     try:
-        font = ImageFont.truetype("arial.ttf", 16)
-        font_large = ImageFont.truetype("arial.ttf", 20)
+        font = ImageFont.truetype("arial.ttf", 15)
+        font_bold = ImageFont.truetype("arialbd.ttf", 16)
     except:
         font = ImageFont.load_default()
-        font_large = font
+        font_bold = font
 
-    print(f"Total steps: {total_steps}, recording at {fps} fps...")
+    print(f"Recording bump traversal: {total_steps} steps at {fps} fps...")
 
     for step in range(total_steps):
         t = step * dt
@@ -113,7 +123,7 @@ def record_comparison():
                 s_rl['right_hip_vel'] * 0.1,
                 s_rl['left_wheel_vel'] * 0.05,
                 s_rl['right_wheel_vel'] * 0.05,
-                0.09 * 5.0,
+                0.12 * 5.0,
                 ctrl_rl.last_target_pitch * 5.0,
                 ctrl_rl.last_u_balance * 20.0,
                 last_action[0], last_action[1], last_action[2], last_action[3]
@@ -157,21 +167,27 @@ def record_comparison():
             combined.paste(img_rl, (480, 0))
 
             draw = ImageDraw.Draw(combined)
-            # 顶部标签
-            draw.rectangle([(10, 10), (220, 42)], fill=(200, 30, 30))
-            draw.text((20, 15), "BASELINE: PURE LQR", fill=(255, 255, 255), font=font)
+            # 左侧：LQR 遥测面板
+            draw.rectangle([(10, 10), (270, 38)], fill=(180, 30, 30))
+            draw.text((15, 14), "BASELINE: PURE LQR (STIFF)", fill=(255, 255, 255), font=font_bold)
             roll_lqr_deg = np.degrees(s_lqr['roll'])
-            draw.text((20, 50), f"Roll: {roll_lqr_deg:+5.1f} deg", fill=(255, 100, 100), font=font)
+            roll_lqr_col = (255, 60, 60) if abs(roll_lqr_deg) > 2.5 else (255, 180, 180)
+            status_lqr = " [SEVERE TILT!]" if abs(roll_lqr_deg) > 2.5 else ""
+            draw.text((15, 45), f"Body Roll: {roll_lqr_deg:+5.1f} deg{status_lqr}", fill=roll_lqr_col, font=font)
+            draw.text((15, 68), f"Pos x: {s_lqr['x_pos']:.2f}m | Stiff Leg PD", fill=(200, 200, 200), font=font)
 
-            draw.rectangle([(490, 10), (740, 42)], fill=(30, 140, 30))
-            draw.text((500, 15), "OURS: PRCC RESIDUAL RL", fill=(255, 255, 255), font=font)
+            # 右侧：PRCC-RL 遥测面板
+            draw.rectangle([(490, 10), (790, 38)], fill=(30, 140, 40))
+            draw.text((495, 14), "OURS: PRCC RESIDUAL RL", fill=(255, 255, 255), font=font_bold)
             roll_rl_deg = np.degrees(s_rl['roll'])
-            draw.text((500, 50), f"Roll: {roll_rl_deg:+5.1f} deg (Absorbed)", fill=(100, 255, 100), font=font)
-            draw.text((500, 75), f"Diff Leg: {np.degrees(delta_roll):+4.1f} deg | k: {k_scale:.2f}x", fill=(200, 255, 200), font=font)
+            status_rl = " (Suspension Absorbing)" if abs(delta_roll) > 0.005 else " (Level)"
+            draw.text((495, 45), f"Body Roll: {roll_rl_deg:+5.1f} deg{status_rl}", fill=(120, 255, 120), font=font)
+            draw.text((495, 68), f"Pos x: {s_rl['x_pos']:.2f}m | Diff Leg: {np.degrees(delta_roll):+4.1f}° | k: {k_scale:.2f}x", fill=(210, 255, 210), font=font)
 
-            # 中间分割线
+            # 底部地形说明与时间
             draw.line([(480, 0), (480, 360)], fill=(255, 255, 255), width=2)
-            draw.text((440, 330), f"t = {t:.1f}s", fill=(220, 220, 220), font=font)
+            draw.rectangle([(280, 328), (680, 354)], fill=(20, 20, 20))
+            draw.text((290, 332), f"t = {t:.1f}s | Bumps: Yellow(L) Orange(R) Red(Bar)", fill=(255, 215, 0), font=font)
 
             frames.append(combined)
 

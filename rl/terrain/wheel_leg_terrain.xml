@@ -3,7 +3,7 @@
   <option gravity="0 0 -9.81" timestep="0.001" integrator="Euler"/>
 
   <visual>
-    <headlight ambient="0.45 0.45 0.45" diffuse="0.8 0.8 0.8" specular="0.15 0.15 0.15"/>
+    <headlight ambient="0.35 0.35 0.35" diffuse="0.65 0.65 0.65" specular="0.2 0.2 0.2"/>
   </visual>
 
   <default>
@@ -17,8 +17,8 @@
     <mesh name="right_leg" file="right_leg.STL"/>
     <mesh name="right_wheel" file="right_wheel.STL"/>
     
-    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".15 .25 .35" rgb2=".25 .35 .45"/>
-    <material name="grid" texture="grid" texrepeat="20 5" reflectance="0.1"/>
+    <texture name="grid" type="2d" builtin="checker" width="512" height="512" rgb1=".20 .30 .40" rgb2=".30 .42 .52"/>
+    <material name="grid" texture="grid" texrepeat="20 5" reflectance="0.15"/>
 
     <!-- 起伏地形高度图资产 (4.0m x 1.0m, 高度范围 0 ~ 0.0065m = 6.5mm) -->
     <!-- hfield size: radius_x, radius_y, elevation_z, base_depth_z -->
@@ -26,11 +26,32 @@
   </asset>
 
   <worldbody>
+    <!-- 定向投射光（产生清晰侧光阴影，立体凸显地形凹凸） -->
+    <light directional="true" pos="1.5 -0.8 1.5" dir="0.4 0.6 -1.2" castshadow="true" diffuse="0.95 0.95 0.95" specular="0.3 0.3 0.3"/>
+
     <!-- 地形中心位于 x=2.0m, y=0.0m，使 x 从 0.0 到 4.0m 连续覆盖 -->
     <geom name="terrain" type="hfield" hfield="terrain_hfield" pos="2.0 0.0 0.0" material="grid"/>
     
     <!-- 边界延伸基底地面，防止超出范围穿模 -->
-    <geom name="ground_sub" type="plane" size="5 2 0.05" pos="2.0 0.0 -0.01" rgba="0.1 0.1 0.1 1"/>
+    <geom name="ground_sub" type="plane" size="5 2 0.05" pos="2.0 0.0 -0.01" rgba="0.08 0.08 0.1 1"/>
+
+    <!-- 赛道边界视觉护栏 (增强空间纵深感) -->
+    <geom name="curb_left"  type="box" size="2.0 0.008 0.006" pos="2.0 0.08 0.005" rgba="0.7 0.7 0.7 0.9" contype="0" conaffinity="0"/>
+    <geom name="curb_right" type="box" size="2.0 0.008 0.006" pos="2.0 -0.11 0.005" rgba="0.7 0.7 0.7 0.9" contype="0" conaffinity="0"/>
+
+    <!-- 障碍凸起视觉提示带 (纯视觉无碰撞 contype=0 conaffinity=0，肉眼直观看到凸起位置) -->
+    <!-- 左侧交错凸起 1: x=2.00, y=-0.0015 -->
+    <geom name="vis_bump1" type="box" size="0.04 0.015 0.002" pos="2.00 -0.0015 0.0035" rgba="0.95 0.75 0.1 0.85" contype="0" conaffinity="0"/>
+    <!-- 右侧交错凸起 2: x=2.25, y=-0.0335 -->
+    <geom name="vis_bump2" type="box" size="0.04 0.015 0.002" pos="2.25 -0.0335 0.0035" rgba="0.95 0.35 0.1 0.85" contype="0" conaffinity="0"/>
+    <!-- 左侧交错凸起 3: x=2.50, y=-0.0015 -->
+    <geom name="vis_bump3" type="box" size="0.05 0.015 0.002" pos="2.50 -0.0015 0.0040" rgba="0.95 0.75 0.1 0.85" contype="0" conaffinity="0"/>
+    <!-- 右侧交错凸起 4: x=2.75, y=-0.0335 -->
+    <geom name="vis_bump4" type="box" size="0.05 0.015 0.002" pos="2.75 -0.0335 0.0040" rgba="0.95 0.35 0.1 0.85" contype="0" conaffinity="0"/>
+    <!-- 双轮横向减速垄 5: x=3.00 -->
+    <geom name="vis_bump5" type="box" size="0.04 0.050 0.002" pos="3.00 -0.0175 0.0032" rgba="0.85 0.15 0.15 0.85" contype="0" conaffinity="0"/>
+    <!-- 左侧交错凸起 6: x=3.25, y=-0.0015 -->
+    <geom name="vis_bump6" type="box" size="0.04 0.015 0.002" pos="3.25 -0.0015 0.0035" rgba="0.95 0.75 0.1 0.85" contype="0" conaffinity="0"/>
 
     <!-- 机器人初始位置 (位于平坦起点 x=0.08, z=0.058) -->
     <body name="base_link" pos="0.08 0 0.058">

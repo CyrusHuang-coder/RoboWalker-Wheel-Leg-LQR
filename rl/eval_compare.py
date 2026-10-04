@@ -143,10 +143,13 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=15.0
 
         mujoco.mj_step(model, data)
 
-        # 记录遥测数据
+        # 记录遥测数据 (计算轮毂中心真实前向速度，剔除髋关节摆动的几何耦合误差)
         v_lw = abs(sensors['left_wheel_vel'] * r_wheel)
         v_rw = abs(sensors['right_wheel_vel'] * r_wheel)
-        slip = 0.5 * (abs(v_lw - abs(sensors['forward_vel'])) + abs(v_rw - abs(sensors['forward_vel'])))
+        L_leg = 0.040
+        v_hub_l = abs(sensors['forward_vel'] + sensors['left_hip_vel'] * L_leg * np.cos(sensors['left_hip_pos']))
+        v_hub_r = abs(sensors['forward_vel'] + sensors['right_hip_vel'] * L_leg * np.cos(sensors['right_hip_pos']))
+        slip = 0.5 * (abs(v_lw - v_hub_l) + abs(v_rw - v_hub_r))
 
         history['time'].append(t)
         history['x'].append(sensors['x_pos'])
@@ -170,7 +173,7 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=15.0
 def main():
     parser = argparse.ArgumentParser(description="Compare LQR Baseline vs Residual RL")
     parser.add_argument("--model", type=str, default="rl/models/best_model.zip", help="Path to RL model")
-    parser.add_argument("--duration", type=float, default=55.0, help="Test duration (s)")
+    parser.add_argument("--duration", type=float, default=45.0, help="Test duration (s)")
     args = parser.parse_args()
 
     print("\n=======================================================")
@@ -185,48 +188,66 @@ def main():
 
     # 确定共同有效前进区间
     max_common_x = min(res_lqr['x'][-1], res_rl['x'][-1])
-    mask_lqr = (res_lqr['x'] >= 0.3) & (res_lqr['x'] <= max_common_x)
-    mask_rl  = (res_rl['x'] >= 0.3) & (res_rl['x'] <= max_common_x)
 
-    roll_std_lqr = np.std(res_lqr['roll_deg'][mask_lqr])
-    roll_max_lqr = np.max(np.abs(res_lqr['roll_deg'][mask_lqr]))
-    z_std_lqr    = np.std(res_lqr['z'][mask_lqr]) * 1000 # mm
-    slip_lqr     = np.mean(res_lqr['slip_rate'][mask_lqr])
+    # 1. 核心非对称障碍颠簸区 [1.8m ~ min(3.2m, max_common_x)]
+    bump_end = min(3.2, max_common_x)
+    m_bump_lqr = (res_lqr['x'] >= 1.8) & (res_lqr['x'] <= bump_end)
+    m_bump_rl  = (res_rl['x'] >= 1.8) & (res_rl['x'] <= bump_end)
 
-    roll_std_rl  = np.std(res_rl['roll_deg'][mask_rl])
-    roll_max_rl  = np.max(np.abs(res_rl['roll_deg'][mask_rl]))
-    z_std_rl     = np.std(res_rl['z'][mask_rl]) * 1000 # mm
-    slip_rl      = np.mean(res_rl['slip_rate'][mask_rl])
+    # 2. 全程综合测试区 [0.3m ~ max_common_x]
+    m_all_lqr = (res_lqr['x'] >= 0.3) & (res_lqr['x'] <= max_common_x)
+    m_all_rl  = (res_rl['x'] >= 0.3) & (res_rl['x'] <= max_common_x)
 
-    # 性能改善百分比
-    impr_roll_std = (roll_std_lqr - roll_std_rl) / roll_std_lqr * 100
-    impr_roll_max = (roll_max_lqr - roll_max_rl) / roll_max_lqr * 100
-    impr_z_std    = (z_std_lqr - z_std_rl) / z_std_lqr * 100
-    impr_slip     = (slip_lqr - slip_rl) / (slip_lqr + 1e-6) * 100
+    def compute_metrics(res, mask):
+        r_std = np.std(res['roll_deg'][mask])
+        r_max = np.max(np.abs(res['roll_deg'][mask]))
+        z_std = np.std(res['z'][mask]) * 1000
+        slip  = np.mean(res['slip_rate'][mask]) * 1000
+        return r_std, r_max, z_std, slip
 
-    print("\n" + "="*72)
-    print("         PERFORMANCE QUANTITATIVE BENCHMARK REPORT")
-    print("="*72)
+    b_rstd_lqr, b_rmax_lqr, b_zstd_lqr, b_slip_lqr = compute_metrics(res_lqr, m_bump_lqr)
+    b_rstd_rl,  b_rmax_rl,  b_zstd_rl,  b_slip_rl  = compute_metrics(res_rl, m_bump_rl)
+
+    a_rstd_lqr, a_rmax_lqr, a_zstd_lqr, a_slip_lqr = compute_metrics(res_lqr, m_all_lqr)
+    a_rstd_rl,  a_rmax_rl,  a_zstd_rl,  a_slip_rl  = compute_metrics(res_rl, m_all_rl)
+
+    def calc_impr(v_base, v_ours):
+        return (v_base - v_ours) / (v_base + 1e-6) * 100
+
+    print("\n" + "="*76)
+    print("       ROBOTIC PERFORMANCE BENCHMARK: BUMP ZONE & FULL TRAVERSAL")
+    print("="*76)
+    print(" [SECTION A: 核心障碍颠簸区测试 (1.8m ~ 3.2m 单侧凸起群)]")
     print(f" {'Metric Indicator':<30} | {'Pure LQR':<12} | {'PRCC-RL':<12} | {'Improvement':<12}")
-    print("-" * 72)
-    print(f" {'Roll Angle Std (横滚抖动标准差)':<26} | {roll_std_lqr:>9.2f}°  | {roll_std_rl:>9.2f}°  | {impr_roll_std:>+9.1f}%")
-    print(f" {'Roll Angle Peak (最大侧倾冲击)':<26} | {roll_max_lqr:>9.2f}°  | {roll_max_rl:>9.2f}°  | {impr_roll_max:>+9.1f}%")
-    print(f" {'Vertical Height Std (机身沉浮)':<24} | {z_std_lqr:>8.2f}mm  | {z_std_rl:>8.2f}mm  | {impr_z_std:>+9.1f}%")
-    print(f" {'Wheel Slip Rate (轮地平均滑移)':<25} | {slip_lqr*1000:>7.2f}mm/s | {slip_rl*1000:>7.2f}mm/s | {impr_slip:>+9.1f}%")
-    print("="*72)
+    print("-" * 76)
+    print(f" {'Peak Roll (最大侧倾冲击角)':<28} | {b_rmax_lqr:>9.2f}°  | {b_rmax_rl:>9.2f}°  | {calc_impr(b_rmax_lqr, b_rmax_rl):>+9.1f}%")
+    print(f" {'Roll Std (横滚姿态抖动标准差)':<27} | {b_rstd_lqr:>9.2f}°  | {b_rstd_rl:>9.2f}°  | {calc_impr(b_rstd_lqr, b_rstd_rl):>+9.1f}%")
+    print(f" {'Height Std (机身垂直颠簸标准差)':<25} | {b_zstd_lqr:>8.2f}mm  | {b_zstd_rl:>8.2f}mm  | {calc_impr(b_zstd_lqr, b_zstd_rl):>+9.1f}%")
+    print(f" {'Wheel Slip (轮毂真实滑移速度)':<26} | {b_slip_lqr:>7.2f}mm/s | {b_slip_rl:>7.2f}mm/s | {calc_impr(b_slip_lqr, b_slip_rl):>+9.1f}%")
+    
+    print("\n [SECTION B: 全程综合测试 (0.3m ~ 终点 包含平地/正弦波/凸起)]")
+    print(f" {'Metric Indicator':<30} | {'Pure LQR':<12} | {'PRCC-RL':<12} | {'Improvement':<12}")
+    print("-" * 76)
+    print(f" {'Peak Roll (全程最大侧倾)':<28} | {a_rmax_lqr:>9.2f}°  | {a_rmax_rl:>9.2f}°  | {calc_impr(a_rmax_lqr, a_rmax_rl):>+9.1f}%")
+    print(f" {'Roll Std (全程姿态抖动标准差)':<27} | {a_rstd_lqr:>9.2f}°  | {a_rstd_rl:>9.2f}°  | {calc_impr(a_rstd_lqr, a_rstd_rl):>+9.1f}%")
+    print(f" {'Height Std (全程机身颠簸)':<26} | {a_zstd_lqr:>8.2f}mm  | {a_zstd_rl:>8.2f}mm  | {calc_impr(a_zstd_lqr, a_zstd_rl):>+9.1f}%")
+    print(f" {'Wheel Slip (全程平均滑移)':<27} | {a_slip_lqr:>7.2f}mm/s | {a_slip_rl:>7.2f}mm/s | {calc_impr(a_slip_lqr, a_slip_rl):>+9.1f}%")
+    print("="*76)
 
     # 绘制高精学术对比图
     fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
 
-    # 1. 横滚角对比 (核心亮点：RL 主动吸震，Roll 显著平缓)
-    axs[0].plot(res_lqr['x'], res_lqr['roll_deg'], 'r--', label='Pure LQR Baseline', alpha=0.8, linewidth=1.5)
-    axs[0].plot(res_rl['x'], res_rl['roll_deg'], 'b-', label='PRCC Residual RL (Ours)', linewidth=1.8)
+    # 1. 横滚角对比 (标出障碍区间)
+    axs[0].axvspan(1.8, 3.2, color='orange', alpha=0.15, label='Asymmetric Bumps (1.8m~3.2m)')
+    axs[0].plot(res_lqr['x'], res_lqr['roll_deg'], 'r--', label='Pure LQR Baseline (Stiff)', alpha=0.8, linewidth=1.5)
+    axs[0].plot(res_rl['x'], res_rl['roll_deg'], 'b-', label='PRCC Residual RL (Compliant)', linewidth=1.8)
     axs[0].set_ylabel('Body Roll (deg)')
-    axs[0].set_title('Wheel-Leg Rough Terrain Traversal: LQR Baseline vs Residual RL')
+    axs[0].set_title('Wheel-Leg Traversal: LQR Baseline vs PRCC Residual RL')
     axs[0].grid(True, linestyle=':', alpha=0.6)
     axs[0].legend(loc='upper right')
 
     # 2. 机身垂直颠簸 (z 轴绝对高度变化)
+    axs[1].axvspan(1.8, 3.2, color='orange', alpha=0.15)
     axs[1].plot(res_lqr['x'], (res_lqr['z'] - res_lqr['z'][0]) * 1000, 'r--', label='Pure LQR', alpha=0.8)
     axs[1].plot(res_rl['x'], (res_rl['z'] - res_rl['z'][0]) * 1000, 'g-', label='PRCC Residual RL (Absorbed)', linewidth=1.8)
     axs[1].set_ylabel('Body Height Drift (mm)')
@@ -234,7 +255,8 @@ def main():
     axs[1].legend(loc='upper right')
 
     # 3. 策略网络的主动调节动作 (差动横滚补偿角度与等效刚度)
-    axs[2].plot(res_rl['x'], res_rl['delta_roll'], 'm-', label='RL Delta Roll (Diff Compliance, deg)', linewidth=1.5)
+    axs[2].axvspan(1.8, 3.2, color='orange', alpha=0.15)
+    axs[2].plot(res_rl['x'], res_rl['delta_roll'], 'm-', label='RL Delta Roll (Active Suspension, deg)', linewidth=1.5)
     ax2_twin = axs[2].twinx()
     ax2_twin.plot(res_rl['x'], res_rl['k_scale'], 'c:', label='RL Adaptive Stiffness (k_scale)', linewidth=1.5)
     axs[2].set_xlabel('Forward Travel Distance x (m)')
