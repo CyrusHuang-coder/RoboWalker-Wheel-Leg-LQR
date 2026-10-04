@@ -52,9 +52,11 @@ class PriorController:
         self.ki_vel = 0.03
         self.max_pitch_target = 0.12  # 约 6.8 度
 
-        # 4. 偏航转向外环
-        self.kp_yaw = 0.002
-        self.kd_yaw = 0.0001
+        # 4. 偏航转向外环与赛道直线保持
+        self.kp_yaw = 0.005
+        self.kd_yaw = 0.0003
+        self.target_y = -0.0175
+        self.kp_y = 1.5
 
         # 控制器内部状态与设定点
         self.target_v = 0.0
@@ -68,12 +70,13 @@ class PriorController:
         self.last_target_pitch = 0.0
         self.last_u_balance = 0.0
 
-    def reset(self, current_x=0.0, current_yaw=0.0):
+    def reset(self, current_x=0.0, current_yaw=0.0, current_y=-0.0175):
         self.dpitch_filtered = 0.0
         self.x_integral = 0.0
         self.v_integral = 0.0
         self.target_x = current_x
         self.target_yaw = current_yaw
+        self.target_y = current_y
         self.target_v = 0.0
         self.last_target_pitch = 0.0
         self.last_u_balance = 0.0
@@ -103,13 +106,14 @@ class PriorController:
 
         if enable_compliance:
             # 先验单侧主动顺应律: 当机身发生横滚时，撞击抬升侧主动后屈缩腿吸收高程，支撑侧保持挺直
+            # 温和适度屈曲: 最大后屈 0.15 rad (约 8.6°)，吸收颠簸同时杜绝纵向失衡
             roll_err = sensors['roll']
-            prior_lh = float(np.clip(roll_err * 2.8, 0.0, 0.35))
-            prior_rh = float(np.clip(-roll_err * 2.8, 0.0, 0.35))
+            prior_lh = float(np.clip(roll_err * 1.5, 0.0, 0.15))
+            prior_rh = float(np.clip(-roll_err * 1.5, 0.0, 0.15))
 
             # 叠加残差调谐 (RL 微调与环境自适应)
-            delta_lh = np.clip(prior_lh + max(0.0, delta_roll), 0.0, 0.40)
-            delta_rh = np.clip(prior_rh + max(0.0, -delta_roll), 0.0, 0.40)
+            delta_lh = np.clip(prior_lh + max(0.0, delta_roll), 0.0, 0.20)
+            delta_rh = np.clip(prior_rh + max(0.0, -delta_roll), 0.0, 0.20)
         else:
             delta_lh = 0.0
             delta_rh = 0.0
@@ -149,8 +153,11 @@ class PriorController:
         u_balance = np.clip(u_balance, -self.max_wheel_torque, self.max_wheel_torque)
         self.last_u_balance = u_balance
 
-        # 5. 偏航转向控制
-        yaw_err = sensors['yaw'] - self.target_yaw
+        # 5. 偏航转向与横向直行纠偏控制 (巡线保持: target_y = -0.0175)
+        y_pos = sensors.get('y_pos', self.target_y)
+        y_err = y_pos - self.target_y
+        yaw_cmd = self.target_yaw - np.clip(self.kp_y * y_err, -0.15, 0.15)
+        yaw_err = sensors['yaw'] - yaw_cmd
         while yaw_err > np.pi: yaw_err -= 2.0 * np.pi
         while yaw_err < -np.pi: yaw_err += 2.0 * np.pi
         u_yaw = -(self.kp_yaw * yaw_err + self.kd_yaw * sensors['yaw_rate'])

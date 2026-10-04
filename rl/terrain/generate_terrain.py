@@ -63,8 +63,8 @@ def generate_terrain(output_path="rl/terrain/rough_terrain.png",
     if Z_max == 0:
         Z_max = 1e-4
 
-    # 归一化到 [0, 65535] 16位无损灰度
-    Z_norm = (Z / Z_max * 65535).astype(np.uint16)
+    # 归一化到 [0, 65535] 16位无损灰度 (MuJoCo 加载 PNG 图像时存在行翻转，必须 flipud 以保证 Y 轴与物理坐标系严格一致)
+    Z_norm = (np.flipud(Z) / Z_max * 65535).astype(np.uint16)
 
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     imageio.imwrite(output_path, Z_norm)

@@ -49,8 +49,8 @@ def record_comparison():
     init_x_lqr = data_lqr.sensor('body_pos').data[0]
     init_x_rl  = data_rl.sensor('body_pos').data[0]
 
-    ctrl_lqr.reset(current_x=init_x_lqr, current_yaw=0.0)
-    ctrl_rl.reset(current_x=init_x_rl, current_yaw=0.0)
+    ctrl_lqr.reset(current_x=init_x_lqr, current_yaw=0.0, current_y=-0.0175)
+    ctrl_rl.reset(current_x=init_x_rl, current_yaw=0.0, current_y=-0.0175)
 
     # 设定完全相同的前向巡航速度 (两者以 0.16 m/s 高速并排冲锋)
     ctrl_lqr.set_target_velocity(0.16)
@@ -133,10 +133,10 @@ def record_comparison():
             action_rl, _ = rl_policy.predict(obs_history.flatten(), deterministic=True)
             last_action = action_rl.copy()
 
-        delta_pitch = float(action_rl[0] * 0.005)
+        delta_pitch = 0.0
         delta_hip   = 0.0
-        delta_roll  = float(action_rl[2] * 0.15)
-        k_scale     = float(1.0 + action_rl[3] * 0.3)
+        delta_roll  = float(action_rl[2] * 0.08)
+        k_scale     = float(1.0 + action_rl[3] * 0.25)
 
         act_rl = ctrl_rl.compute(
             s_rl, dt=dt,
@@ -149,6 +149,11 @@ def record_comparison():
         data_rl.actuator('left_wheel_motor').ctrl[0] = act_rl['torque_left_wheel']
         data_rl.actuator('right_wheel_motor').ctrl[0] = act_rl['torque_right_wheel']
         mujoco.mj_step(model, data_rl)
+
+        # 障碍区通过后在平坦着陆区正常结束录制 (防止掉入边缘)
+        if data_rl.sensor('body_pos').data[0] >= 3.45 and data_lqr.sensor('body_pos').data[0] >= 3.45:
+            print(f"Both robots cleared obstacle course cleanly! Stopping recording.")
+            break
 
         # 3. 画面渲染
         if step % render_interval == 0:

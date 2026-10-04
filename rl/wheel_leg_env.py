@@ -163,8 +163,8 @@ class WheelLegRoughTerrainEnv(gym.Env):
         self.data.qpos[1] = np.random.uniform(-0.005, 0.005)
         self.data.qpos[2] = 0.058 # 标称高度
 
-        # 控制器重置
-        self.controller.reset(current_x=self.data.qpos[0], current_yaw=0.0)
+        # 控制器重置 (设定赛道中线 y=-0.0175m)
+        self.controller.reset(current_x=self.data.qpos[0], current_yaw=0.0, current_y=-0.0175)
         self.controller.set_target_velocity(self.target_v)
 
         # 沉降几个微步达到稳定接触
@@ -184,11 +184,11 @@ class WheelLegRoughTerrainEnv(gym.Env):
     def step(self, action):
         action = np.clip(action, -1.0, 1.0)
         
-        # 动作解映射 (PRCC 专注单侧独立屈曲顺应与避震，绝不拖慢车速)
-        delta_pitch = float(action[0] * 0.005)  # 俯仰极轻微残差 [-0.005, 0.005] rad，不破坏纵向巡航
-        delta_hip   = 0.0                       # 锁定标称直立基准，彻底消除主动刹车后仰
-        delta_roll  = float(action[2] * 0.15)   # 单侧独立屈曲避震残差微调
-        k_scale     = float(1.0 + action[3] * 0.3) # 虚拟悬架刚度比 [0.7, 1.3]
+        # 动作解映射 (PRCC 专注单侧独立屈曲顺应与避震，锁定俯仰由先验闭环全权负责，彻底杜绝超速失控)
+        delta_pitch = 0.0                       # 锁定俯仰残差，速度与纵向平衡完全由先验控制器闭环掌控
+        delta_hip   = 0.0                       # 锁定标称直立基准
+        delta_roll  = float(action[2] * 0.08)   # 单侧独立屈曲残差调谐 [-0.08, 0.08] rad = [-4.6°, 4.6°]
+        k_scale     = float(1.0 + action[3] * 0.25) # 虚拟悬架刚度比 [0.75, 1.25]
 
         z_vel_penalty = 0.0
 
@@ -200,7 +200,8 @@ class WheelLegRoughTerrainEnv(gym.Env):
             actuators = self.controller.compute(
                 sensors, dt=self.physics_dt,
                 delta_pitch=delta_pitch, delta_hip=delta_hip,
-                delta_roll=delta_roll, k_scale=k_scale
+                delta_roll=delta_roll, k_scale=k_scale,
+                enable_compliance=True
             )
 
             # 驱动电机
@@ -224,34 +225,45 @@ class WheelLegRoughTerrainEnv(gym.Env):
         self.obs_history[-1] = current_obs
 
         # 计算奖励 (Reward Shaping)
-        # 1. 前向推进奖励与速度跟踪 (鼓励高速冲锋，与 LQR 速度严丝合缝)
+        # 1. 速度跟踪与平稳巡航奖励 (在 target_v 附近获得最高奖励)
         v_fwd = sensors['forward_vel']
-        r_forward = 15.0 * min(max(0.0, v_fwd), self.target_v * 1.2)
-        r_track   = np.exp(-15.0 * (v_fwd - self.target_v)**2)
+        r_speed_track = 10.0 * np.exp(-30.0 * (v_fwd - self.target_v)**2)
+        r_forward = 5.0 * np.clip(v_fwd / self.target_v, 0.0, 1.2)
         # 2. 存活奖励
         r_alive   = 2.0
-        # 3. 强力横滚与角速度抑制 (消除单侧凸起冲击)
-        r_roll    = 30.0 * (sensors['roll']**2)
-        r_pitch   = 5.0 * (sensors['pitch']**2)
+        # 3. 赛道对中与直线巡线约束 (严厉惩罚偏离中线 y=-0.0175 与航向跑偏，杜绝撞击边缘护栏)
+        y_dev = sensors['y_pos'] - (-0.0175)
+        r_lateral = 60.0 * (y_dev**2)
+        r_yaw     = 15.0 * (sensors['yaw']**2)
+        # 4. 强力横滚与角速度抑制 (核心避震目标)
+        r_roll    = 45.0 * (sensors['roll']**2)
+        r_pitch   = 8.0 * (sensors['pitch']**2)
         r_angvel  = 0.5 * (sensors['roll_rate']**2 + sensors['pitch_rate']**2)
-        # 4. 垂直颠簸惩罚
+        # 5. 垂直颠簸惩罚
         r_z_bounce = 3.0 * z_vel_penalty
-        # 5. 强平滑惩罚 (杜绝 50Hz 抽搐，逼迫策略输出如液压减震般平滑丝滑的悬架动作)
-        r_action_mag = 0.02 * np.sum(action**2)
-        r_smooth     = 0.20 * np.sum((action - self.last_action)**2)
+        # 6. 动作平滑惩罚 (杜绝高频锯齿折线)
+        r_action_mag = 0.05 * np.sum(action**2)
+        r_smooth     = 0.25 * np.sum((action - self.last_action)**2)
 
-        reward = (r_forward + r_track + r_alive 
+        reward = (r_speed_track + r_forward + r_alive 
+                  - r_lateral - r_yaw
                   - r_roll - r_pitch - r_angvel 
                   - r_z_bounce - r_action_mag - r_smooth)
 
         self.last_action = action.copy()
         self.current_step += 1
 
-        # 终止条件判定 (倒立摆摔倒 / 倾角过大)
+        # 终止条件判定 (倒立摆摔倒 / 偏离赛道 / 越障完成)
         terminated = False
-        if abs(sensors['pitch']) > np.radians(35) or abs(sensors['roll']) > np.radians(35):
+        if abs(sensors['pitch']) > np.radians(30) or abs(sensors['roll']) > np.radians(30):
             terminated = True
-            reward -= 5.0  # 严重摔倒惩罚
+            reward -= 10.0  # 严重摔倒惩罚
+        elif abs(sensors['y_pos'] - (-0.0175)) > 0.06: # 偏离赛道护栏边缘
+            terminated = True
+            reward -= 10.0
+        elif sensors['x_pos'] >= 3.60: # 顺利越过全部障碍区完赛
+            terminated = True
+            reward += 10.0
 
         # 超时截断
         truncated = (self.current_step >= self.max_episode_steps)
