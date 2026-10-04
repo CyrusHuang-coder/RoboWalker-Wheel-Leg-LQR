@@ -1,4 +1,4 @@
-# 编译与二进制产物 (由 CMake 现场生成，无需进仓库)
+# 1. 编译与二进制产物 (由 CMake 现场生成，无需进仓库)
 build/
 bin/*.exe
 bin/*.dll
@@ -7,26 +7,30 @@ bin/*.dll
 *.a
 *.lib
 
-# 本地编辑器与 IDE 配置
+# 2. 本地编辑器与 IDE 配置
 .vscode/
 .idea/
 *.swp
 *~
 
-# Python 缓存
+# 3. Python 缓存与虚拟环境
 __pycache__/
 *.py[cod]
 *$py.class
 .pytest_cache/
 
-# 操作系统临时文件
+# 4. 操作系统临时文件与本地快捷脚本
 Thumbs.db
 [Dd]esktop.ini
-
 push_to_github.bat
 
-# 强化学习临时数据与调试产物 (保留代码与 best_model.zip)
+# 5. 本地实验过程记录、中间模型切片与二进制大文件 (本地保留，不传 GitHub 保持仓库轻量)
 rl/logs/
+rl/checkpoints_history/
+experiments_backup/
+*.npz
 rl/models/ppo_wheel_leg_*.zip
-rl/baseline_data.npz
 rl/debug_eval.py
+
+# 6. 特殊白名单：明确确保最终最佳模型被安全纳入版本控制
+!rl/models/best_model.zip
