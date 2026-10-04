@@ -84,7 +84,7 @@ class PriorController:
     def set_target_yaw(self, yaw_cmd):
         self.target_yaw = yaw_cmd
 
-    def compute(self, sensors, dt=0.001, delta_pitch=0.0, delta_hip=0.0, delta_roll=0.0, k_scale=1.0):
+    def compute(self, sensors, dt=0.001, delta_pitch=0.0, delta_hip=0.0, delta_roll=0.0, k_scale=1.0, enable_compliance=True):
         """
         核心控制力矩解算
         sensors dict 包含:
@@ -101,9 +101,21 @@ class PriorController:
         kp_hip = self.kp_hip_base * np.clip(k_scale, 0.3, 2.0)
         kd_hip = self.kd_hip_base * np.sqrt(np.clip(k_scale, 0.3, 2.0))
 
-        # 左右髋期望角度 (对称调节 + 差动横滚补偿)
-        q_target_lh = self.q_hip_nominal + delta_hip + delta_roll
-        q_target_rh = self.q_hip_nominal + delta_hip - delta_roll
+        if enable_compliance:
+            # 先验单侧主动顺应律: 当机身发生横滚时，撞击抬升侧主动后屈缩腿吸收高程，支撑侧保持挺直
+            roll_err = sensors['roll']
+            prior_lh = float(np.clip(roll_err * 2.8, 0.0, 0.35))
+            prior_rh = float(np.clip(-roll_err * 2.8, 0.0, 0.35))
+
+            # 叠加残差调谐 (RL 微调与环境自适应)
+            delta_lh = np.clip(prior_lh + max(0.0, delta_roll), 0.0, 0.40)
+            delta_rh = np.clip(prior_rh + max(0.0, -delta_roll), 0.0, 0.40)
+        else:
+            delta_lh = 0.0
+            delta_rh = 0.0
+
+        q_target_lh = self.q_hip_nominal + delta_lh
+        q_target_rh = self.q_hip_nominal + delta_rh
 
         tau_l_hip = -kp_hip * (sensors['left_hip_pos'] - q_target_lh) - kd_hip * sensors['left_hip_vel']
         tau_r_hip = -kp_hip * (sensors['right_hip_pos'] - q_target_rh) - kd_hip * sensors['right_hip_vel']

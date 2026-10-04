@@ -96,9 +96,9 @@ def record_comparison():
     for step in range(total_steps):
         t = step * dt
 
-        # 1. LQR 步进
+        # 1. LQR 步进 (刚性基线)
         s_lqr = extract_sensors(model, data_lqr)
-        act_lqr = ctrl_lqr.compute(s_lqr, dt=dt)
+        act_lqr = ctrl_lqr.compute(s_lqr, dt=dt, enable_compliance=False)
         data_lqr.actuator('left_hip_motor').ctrl[0] = act_lqr['torque_left_hip']
         data_lqr.actuator('right_hip_motor').ctrl[0] = act_lqr['torque_right_hip']
         data_lqr.actuator('left_wheel_motor').ctrl[0] = act_lqr['torque_left_wheel']
@@ -134,14 +134,15 @@ def record_comparison():
             last_action = action_rl.copy()
 
         delta_pitch = float(action_rl[0] * 0.005)
-        delta_hip   = float(action_rl[1] * 0.04)
-        delta_roll  = float(action_rl[2] * 0.08)
+        delta_hip   = 0.0
+        delta_roll  = float(action_rl[2] * 0.15)
         k_scale     = float(1.0 + action_rl[3] * 0.3)
 
         act_rl = ctrl_rl.compute(
             s_rl, dt=dt,
             delta_pitch=delta_pitch, delta_hip=delta_hip,
-            delta_roll=delta_roll, k_scale=k_scale
+            delta_roll=delta_roll, k_scale=k_scale,
+            enable_compliance=True
         )
         data_rl.actuator('left_hip_motor').ctrl[0] = act_rl['torque_left_hip']
         data_rl.actuator('right_hip_motor').ctrl[0] = act_rl['torque_right_hip']

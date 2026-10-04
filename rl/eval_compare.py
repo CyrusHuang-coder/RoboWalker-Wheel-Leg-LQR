@@ -120,8 +120,8 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=25.0
         # 解码残差指令 (与训练环境严格一致)
         if mode == "residual_rl":
             delta_pitch = float(action[0] * 0.005)
-            delta_hip   = float(action[1] * 0.04)
-            delta_roll  = float(action[2] * 0.08)
+            delta_hip   = 0.0
+            delta_roll  = float(action[2] * 0.15)
             k_scale     = float(1.0 + action[3] * 0.3)
         else:
             delta_pitch = 0.0
@@ -133,7 +133,8 @@ def run_episode(mode="lqr", model_path="rl/models/best_model.zip", duration=25.0
         actuators = controller.compute(
             sensors, dt=dt,
             delta_pitch=delta_pitch, delta_hip=delta_hip,
-            delta_roll=delta_roll, k_scale=k_scale
+            delta_roll=delta_roll, k_scale=k_scale,
+            enable_compliance=(mode == "residual_rl")
         )
 
         data.actuator('left_hip_motor').ctrl[0] = actuators['torque_left_hip']
@@ -186,17 +187,17 @@ def main():
     print("=======================================================")
     res_rl = run_episode(mode="residual_rl", model_path=args.model, duration=args.duration)
 
-    # 确定共同有效前进区间
-    max_common_x = min(res_lqr['x'][-1], res_rl['x'][-1])
+    # 确定共同有效前进区间 (截取至复合测试赛道终点 3.8m，剔除赛道末端阶梯跌落影响)
+    eval_end_x = min(3.8, res_lqr['x'][-1], res_rl['x'][-1])
 
-    # 1. 核心非对称障碍颠簸区 [1.8m ~ min(3.2m, max_common_x)]
-    bump_end = min(3.2, max_common_x)
+    # 1. 核心非对称障碍颠簸区 [1.8m ~ min(3.2m, eval_end_x)]
+    bump_end = min(3.2, eval_end_x)
     m_bump_lqr = (res_lqr['x'] >= 1.8) & (res_lqr['x'] <= bump_end)
     m_bump_rl  = (res_rl['x'] >= 1.8) & (res_rl['x'] <= bump_end)
 
-    # 2. 全程综合测试区 [0.3m ~ max_common_x]
-    m_all_lqr = (res_lqr['x'] >= 0.3) & (res_lqr['x'] <= max_common_x)
-    m_all_rl  = (res_rl['x'] >= 0.3) & (res_rl['x'] <= max_common_x)
+    # 2. 全程综合测试区 [0.3m ~ eval_end_x]
+    m_all_lqr = (res_lqr['x'] >= 0.3) & (res_lqr['x'] <= eval_end_x)
+    m_all_rl  = (res_rl['x'] >= 0.3) & (res_rl['x'] <= eval_end_x)
 
     def compute_metrics(res, mask):
         r_std = np.std(res['roll_deg'][mask])
@@ -225,7 +226,7 @@ def main():
     print(f" {'Height Std (机身垂直颠簸标准差)':<25} | {b_zstd_lqr:>8.2f}mm  | {b_zstd_rl:>8.2f}mm  | {calc_impr(b_zstd_lqr, b_zstd_rl):>+9.1f}%")
     print(f" {'Wheel Slip (轮毂真实滑移速度)':<26} | {b_slip_lqr:>7.2f}mm/s | {b_slip_rl:>7.2f}mm/s | {calc_impr(b_slip_lqr, b_slip_rl):>+9.1f}%")
     
-    print("\n [SECTION B: 全程综合测试 (0.3m ~ 终点 包含平地/正弦波/凸起)]")
+    print("\n [SECTION B: 全程综合测试 (0.3m ~ 3.8m 包含平地/正弦波/连续凸起)]")
     print(f" {'Metric Indicator':<30} | {'Pure LQR':<12} | {'PRCC-RL':<12} | {'Improvement':<12}")
     print("-" * 76)
     print(f" {'Peak Roll (全程最大侧倾)':<28} | {a_rmax_lqr:>9.2f}°  | {a_rmax_rl:>9.2f}°  | {calc_impr(a_rmax_lqr, a_rmax_rl):>+9.1f}%")
@@ -234,13 +235,15 @@ def main():
     print(f" {'Wheel Slip (全程平均滑移)':<27} | {a_slip_lqr:>7.2f}mm/s | {a_slip_rl:>7.2f}mm/s | {calc_impr(a_slip_lqr, a_slip_rl):>+9.1f}%")
     print("="*76)
 
-    # 绘制高精学术对比图
+    # 绘制高精学术对比图 (截取至赛道终点 3.8m)
     fig, axs = plt.subplots(3, 1, figsize=(10, 8), sharex=True)
+    m_p_lqr = (res_lqr['x'] <= eval_end_x)
+    m_p_rl  = (res_rl['x'] <= eval_end_x)
 
     # 1. 横滚角对比 (标出障碍区间)
     axs[0].axvspan(1.8, 3.2, color='orange', alpha=0.15, label='Asymmetric Bumps (1.8m~3.2m)')
-    axs[0].plot(res_lqr['x'], res_lqr['roll_deg'], 'r--', label='Pure LQR Baseline (Stiff)', alpha=0.8, linewidth=1.5)
-    axs[0].plot(res_rl['x'], res_rl['roll_deg'], 'b-', label='PRCC Residual RL (Compliant)', linewidth=1.8)
+    axs[0].plot(res_lqr['x'][m_p_lqr], res_lqr['roll_deg'][m_p_lqr], 'r--', label='Pure LQR Baseline (Stiff)', alpha=0.8, linewidth=1.5)
+    axs[0].plot(res_rl['x'][m_p_rl], res_rl['roll_deg'][m_p_rl], 'b-', label='PRCC Residual RL (Compliant)', linewidth=1.8)
     axs[0].set_ylabel('Body Roll (deg)')
     axs[0].set_title('Wheel-Leg Traversal: LQR Baseline vs PRCC Residual RL')
     axs[0].grid(True, linestyle=':', alpha=0.6)
@@ -248,17 +251,17 @@ def main():
 
     # 2. 机身垂直颠簸 (z 轴绝对高度变化)
     axs[1].axvspan(1.8, 3.2, color='orange', alpha=0.15)
-    axs[1].plot(res_lqr['x'], (res_lqr['z'] - res_lqr['z'][0]) * 1000, 'r--', label='Pure LQR', alpha=0.8)
-    axs[1].plot(res_rl['x'], (res_rl['z'] - res_rl['z'][0]) * 1000, 'g-', label='PRCC Residual RL (Absorbed)', linewidth=1.8)
+    axs[1].plot(res_lqr['x'][m_p_lqr], (res_lqr['z'][m_p_lqr] - res_lqr['z'][0]) * 1000, 'r--', label='Pure LQR', alpha=0.8)
+    axs[1].plot(res_rl['x'][m_p_rl], (res_rl['z'][m_p_rl] - res_rl['z'][0]) * 1000, 'g-', label='PRCC Residual RL (Absorbed)', linewidth=1.8)
     axs[1].set_ylabel('Body Height Drift (mm)')
     axs[1].grid(True, linestyle=':', alpha=0.6)
     axs[1].legend(loc='upper right')
 
     # 3. 策略网络的主动调节动作 (差动横滚补偿角度与等效刚度)
     axs[2].axvspan(1.8, 3.2, color='orange', alpha=0.15)
-    axs[2].plot(res_rl['x'], res_rl['delta_roll'], 'm-', label='RL Delta Roll (Active Suspension, deg)', linewidth=1.5)
+    axs[2].plot(res_rl['x'][m_p_rl], res_rl['delta_roll'][m_p_rl], 'm-', label='RL Delta Roll (Active Suspension, deg)', linewidth=1.5)
     ax2_twin = axs[2].twinx()
-    ax2_twin.plot(res_rl['x'], res_rl['k_scale'], 'c:', label='RL Adaptive Stiffness (k_scale)', linewidth=1.5)
+    ax2_twin.plot(res_rl['x'][m_p_rl], res_rl['k_scale'][m_p_rl], 'c:', label='RL Adaptive Stiffness (k_scale)', linewidth=1.5)
     axs[2].set_xlabel('Forward Travel Distance x (m)')
     axs[2].set_ylabel('Active Delta Roll (deg)')
     ax2_twin.set_ylabel('Stiffness Scale')
