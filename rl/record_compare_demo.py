@@ -35,10 +35,10 @@ def record_comparison():
     ctrl_lqr = PriorController()
     ctrl_rl  = PriorController()
 
-    # 将机器人置于颠簸凸起前沿 (x = 1.80m)，直面 2.0m~3.3m 实体减速垄障碍群
-    data_lqr.qpos[0] = 1.80
+    # 初始状态：从赛道起点 (x=0.08m) 出发，完整穿越平地段、正弦波起伏段、非对称实体减速垄群与平稳降落段
+    data_lqr.qpos[0] = 0.08
     data_lqr.qpos[2] = 0.060
-    data_rl.qpos[0]  = 1.80
+    data_rl.qpos[0]  = 0.08
     data_rl.qpos[2]  = 0.060
 
     # 预热沉降
@@ -72,10 +72,10 @@ def record_comparison():
         cam.elevation = -14
         cam.azimuth = 145
 
-    fps = 25
+    fps = 16
     dt = model.opt.timestep # 0.001s
-    duration = 8.5 # 录制穿越减速垄全过程
-    render_interval = int(1.0 / fps / dt) # 每 40 步录制一帧
+    duration = 24.0 # 全程穿越测试 (涵盖 0.08m~3.50m 全程，约 21 秒)
+    render_interval = int(1.0 / fps / dt) # 约每 62 步录制一帧
     total_steps = int(duration / dt)
 
     frames = []
