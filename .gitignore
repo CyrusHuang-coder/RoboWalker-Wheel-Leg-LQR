@@ -32,5 +32,11 @@ experiments_backup/
 rl/models/ppo_wheel_leg_*.zip
 rl/debug_eval.py
 
-# 6. 特殊白名单：明确确保最终最佳模型被安全纳入版本控制
+# 6. 本地过程调试截图与临时脚本归档
+demo/previews/
+archive/debug/
+
+# 7. 特殊白名单：明确确保最终核心模型被安全纳入版本控制
 !rl/models/best_model.zip
+!rl/models/curriculum_master_model.zip
+!rl/models/sct_master.zip

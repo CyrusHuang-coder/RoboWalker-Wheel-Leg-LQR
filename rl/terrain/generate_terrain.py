@@ -1,17 +1,33 @@
 """
-生成高保真轻起伏地形高度图 (Heightfield .png)
-地形特征：
-1. 启动缓冲区 (x < 0.2m): 平坦路面，供初始直立收敛
-2. 纵向轻微正弦波段 (幅值 2.0mm ~ 3.5mm, 对应微型车 8mm 轮径)
-3. 左右非对称随机凸起段 (单侧隆起 3.0mm, 用于激发并测试双腿自适应横滚平衡)
-4. 输出: rl/terrain/rough_terrain.png (16-bit 灰度或 8-bit 高精度灰度图)
+====================================================================================================
+模块功能介绍 (Module Overview):
+`rl/terrain/generate_terrain.py`: 4.0m 离线基础轻起伏高度图 PNG 静态生成器
+====================================================================================================
+1. 核心定位：
+   - 离线生成 4.0m x 1.0m 的基础测试高度图，保存为 16-bit 灰度 PNG (`rough_terrain.png`)。
+   - 供早期静态 MuJoCo XML (`wheel_leg_terrain.xml`) 中的 `<hfield file="..."/>` 直接引用加载。
+
+2. 地形特征与物理尺寸：
+   - 启动平坦区 (x in [0, 0.3m]): 供倒立摆在启动瞬间平稳收敛直立平衡。
+   - 正弦连续微波 (x in [0.3m, 1.8m]): 波长 0.25m, 峰值 2.5mm，测试平顺路面吸震。
+   - 左右非对称交错减速垄 (x in [1.8m, 3.5m]): 峰值 4.8mm 单侧隆起，激发双腿差动自适应横滚。
+   - 平缓收尾缓冲带 (x in [3.5m, 4.0m]): 平稳制动停车。
+====================================================================================================
 """
 import os
+import sys
 import numpy as np
 import imageio.v2 as imageio
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+rl_dir = os.path.abspath(os.path.join(current_dir, ".."))
+repo_dir = os.path.abspath(os.path.join(rl_dir, ".."))
+for p in [repo_dir, rl_dir, current_dir]:
+    if p not in sys.path:
+        sys.path.insert(0, p)
 
-def generate_terrain(output_path="rl/terrain/rough_terrain.png",
+
+def generate_terrain(output_path=None,
                      nrow=256, ncol=1024,
                      x_len=4.0, y_len=1.0,
                      max_height=0.005):
@@ -20,6 +36,9 @@ def generate_terrain(output_path="rl/terrain/rough_terrain.png",
     y_len: 地形横向全长 (米)
     max_height: 最大高差 (米, 0.005m = 5mm)
     """
+    if output_path is None:
+        output_path = os.path.join(current_dir, "rough_terrain.png")
+
     x = np.linspace(0, x_len, ncol)
     y = np.linspace(-y_len / 2, y_len / 2, nrow)
     X, Y = np.meshgrid(x, y)
